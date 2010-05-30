@@ -2236,8 +2236,12 @@ PNThreadGrabber.prototype = {
   },
 
   extractPlainTitle: function(t) {
-    var m = t.match(/(Re:\s+)?(.*)/);
-    return m[2] || '';
+    var m = t.match(/(Re:\s+)*(.*)/);
+    t = m[2] || '';
+    while(/&amp;/.test(t) && !/[<>"]/.test(t)) {
+        t = t.replace('&amp;', '&');
+    }
+    return t;
   },
 
   postDatetoJSDate: function(pd) {

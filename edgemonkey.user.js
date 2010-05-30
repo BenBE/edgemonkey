@@ -2235,9 +2235,14 @@ PNThreadGrabber.prototype = {
     this.logger.innerHTML+=s;
   },
 
-  extractPlainTitle: function(t) {
-    var m = t.match(/(Re:\s+)*(.*)/);
-    t = m[2] || '';
+  postDatetoJSDate: function(pd) {
+    //"Mo 07.12.09<br>23:17"
+    // good thing DF always returns that and ignores user settings...
+    var d = pd.match(/\S+\s(\d+)\.(\d+)\.(\d+)<\S+>(\d+):(\d+)/);
+    return new Date(2000+parseInt(d[3]), d[2]-1, d[1], d[4], d[5], 0);
+  },
+
+  unescapeTitle: function(t) {
     while(/&amp;|&gt;|&lt;|&quot;/.test(t) && !/[<>"]/.test(t)) {
         t = t.replace(/&quot;/g, '"');
         t = t.replace(/&lt;/g, '<');
@@ -2247,40 +2252,62 @@ PNThreadGrabber.prototype = {
     return t;
   },
 
-  postDatetoJSDate: function(pd) {
-    //"Mo 07.12.09<br>23:17"
-    // good thing DF always returns that and ignores user settings...
-    var d = pd.match(/\S+\s(\d+)\.(\d+)\.(\d+)<\S+>(\d+):(\d+)/);
-    return new Date(2000+parseInt(d[3]), d[2]-1, d[1], d[4], d[5], 0);
+  extractPlainTitle: function(t) {
+    var m = this.unescapeTitle(t).match(/(Re:\s+)*(.*)/);
+    return m[2] || '';
+  },
+
+  crawlPMPage: function(box,page) {
+    var start = page*50;
+
+    var lister = new AJAXObject();
+    var host = document.createElement('div');
+    host.innerHTML = lister.SyncRequest('/privmsg.php?folder='+box+'&start='+start, null);
+
+    var table = queryXPathNode(host, '/table[@class="overall"]/tbody/tr[2]/td/div/form/table[@class="forumline"]');
+    if (!table) {
+        return null;
+    }
+
+    var rows = queryXPathNodeSet(table, './/tr[./td[starts-with(@id,"folderFor")]]');
+    if (!rows || !rows.length) {
+        return [];
+    }
+
+    var messages = [];
+
+    var position = start;
+    rows.forEach(function(row) {
+      messages.push({
+        box: box,
+        pos: position++,
+        read: !queryXPathNode(row, './td[1]/a'),
+        title: this.unescapeTitle(queryXPathNode(row, './td[2]/span/a[2]').textContent),
+        postID: queryXPathNode(row, './td[2]/span/a[2]').href.match(/p=(\d+)/)[1],
+        postSpecial: (function(){var a=queryXPathNode(row, './td[2]/span/b'); return a?a.textContent:'';})(),
+        partner: queryXPathNode(row, './td[2]/span[2]/span').textContent,
+        partnerID: (function(){var a=queryXPathNode(row, './td[2]/span[2]/span/a'); return a?a.href.match(/u=(\d+)/)[1]:null;})(),
+        date: this.postDatetoJSDate(queryXPathNode(row,'./td[3]/span').innerHTML)
+      });
+    }, this);
+
+    return messages;
   },
 
   crawlPMs: function(title, depth) {
     this.messages = [];
     ['inbox','sentbox','outbox'].forEach(function(box) {
       this.DisplayLog('<br/>Grabbing '+box+'... ');
-      st = 0;
-      var lister = new AJAXObject();
-      var host = document.createElement('div');
+      var st = 0;
       do {
         this.DisplayLog((st+1)+' ');
-        host.innerHTML = lister.SyncRequest('/privmsg.php?folder='+box+'&start='+st*50, null);
-        var table = queryXPathNode(host, '/table[@class="overall"]/tbody/tr[2]/td/div/form/table[@class="forumline"]');
-        if (!table) break;
-        var rows = queryXPathNodeSet(table, './/tr[./td[starts-with(@id,"folderFor")]]');
-        if (!rows || !rows.length) break;
-        rows.forEach(function(row) {
-          this.messages.push({
-            box: box,
-            read: !queryXPathNode(row, './td[1]/a'),
-            title: queryXPathNode(row, './td[2]/span/a[2]').textContent,
-            postID: queryXPathNode(row, './td[2]/span/a[2]').href.match(/p=(\d+)/)[1],
-            postSpecial: (function(){var a=queryXPathNode(row, './td[2]/span/b'); return a?a.textContent:'';})(),
-            partner: queryXPathNode(row, './td[2]/span[2]/span').textContent,
-            partnerID: (function(){var a=queryXPathNode(row, './td[2]/span[2]/span/a'); return a?a.href.match(/u=(\d+)/)[1]:null;})(),
-            date: this.postDatetoJSDate(queryXPathNode(row,'./td[3]/span').innerHTML)
-          });
-
-        },this);
+        var msgarr = this.crawlPMPage(box,st);
+        if(isEmpty(msgarr)) {
+          break;
+        }
+        msgarr.forEach(function(msg){
+          this.messages.push(msg);
+        }, this);
         if (++st >= depth) {
           break;
         }

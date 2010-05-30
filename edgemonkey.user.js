@@ -5,10 +5,10 @@
 // @description    Krams fuer die Entwickler-Ecke
 // @include        *.entwickler-ecke.de/*
 // @include        *.c-sharp-forum.de/*
-// @include        *.delphi-library.de/*
+// @include        *.c-sharp-library.de/*
 // @include        *.delphi-forum.de/*
+// @include        *.delphi-library.de/*
 // @include        *.delphiforum.de/*
-// @include        *.c-sharp-library/*
 // @exclude
 // ==/UserScript==
 
@@ -330,7 +330,8 @@ function isEmpty(what)
 
 function isHTMLElement(what)
 {
-  return !isUndef && what instanceof HTMLElement;
+  return !isUndef(what) &&
+   ((what instanceof HTMLElement) || (what.tagName));
 }
 
 //http://www.infocamp.de/javascript_htmlspecialchars.php
@@ -563,6 +564,18 @@ SettingsGenerator.prototype = {
     r.appendChild(th);
     this.tbl.zebra = false;
   },
+  addFootrow: function (content, colspan)
+  {
+    var r = this.tbl.insertRow(-1);
+    var c = document.createElement('td');
+    r.appendChild(c);
+    c.colSpan = colspan;
+    c.className = 'catBottom';
+    c.style.cssText = 'text-align:center;';
+    c.innerHTML = content;
+    this.tbl.zebra = false;
+    return c;
+  },
   addSettingsRow: function (caption, innerHTML) {
     var rowClass = this.tbl.zebra ? 'row1' : 'row2';
     this.tbl.zebra = !this.tbl.zebra;
@@ -759,7 +772,7 @@ function UserWindow(title, name,options,previous,body_element) {
     case "undefined": break;
     case "string": bd+=body_element; break;
     case "object": bd+=body_element.innerHTML; break;
-    default:  bd+=body_element.toString;
+    default:  bd+=body_element.toString();
   }
   wnd.document.write(bd+'</body>');
   wnd.document.write('</html>');
@@ -1010,6 +1023,71 @@ function SettingsStore() {
     else return what;
   }
 
+  this.Categories = [];
+
+  this.AddCategory('Design',[
+    this.AddSetting('Codebl&ouml;cke als monospace anzeigen','pagehack.monospace', 'bool', true),
+    this.AddSetting( 'Schlagschatten unter Popup-Fenstern', 'ui.showDropShadow', 'bool', true),
+    this.AddSetting( 'Nutze ein flacheres Layout f&uuml;r Formulare', 'ui.useFlatStyle', 'bool', false),
+    this.AddSetting( 'Maximalbreite von Bildern erzwingen', 'pagehack.imgMaxWidth', 'bool', false),
+  ]);
+  this.AddCategory('Ergonomie', [
+    this.AddSetting( 'Dropdown-Men&uuml; f&uuml;r Meine Ecke', 'pagehack.quickProfMenu', 'bool', true),
+    this.AddSetting( 'Dropdown-Men&uuml; f&uuml;r Login', 'pagehack.quickLoginMenu', 'bool', true),
+    this.AddSetting( 'Dropdown-Men&uuml; f&uuml;r die Suche', 'pagehack.quickSearchMenu', 'bool', true),
+    this.AddSetting( 'Weiterleitung auf ungelesene Themen nach dem Absenden von Beiträgen', 'pagehack.extPostSubmission', 'bool', true),
+    this.AddSetting( 'Smiley-Auswahlfenster in Overlays &ouml;ffnen', 'pagehack.smileyOverlay',[
+          ['Nein', 0],
+          ['Ja, verschiebbar', 1],
+          ['Ja, fest', 2],
+        ], 1),
+    this.AddSetting( '"Meine offenen Fragen" um Inline-Markieren erweitern', 'pagehack.answeredLinks', 'bool', true),
+    this.AddSetting( 'Links auf Unterforen mit SessionID versehen', 'ui.addsid', 'bool', true)
+  ]);
+  this.AddCategory('Entwickler', [
+    this.AddSetting( 'Zus&auml;tzliche Funktionen f&uuml;r Beta-Tester', 'ui.betaFeatures', 'bool', false),
+    this.AddSetting( 'Deaktivieren des Absenden von Shouts', 'ui.disableShouting', 'bool', false),
+    this.AddSetting( 'Bei ge&auml;nderten Links auf gleicher Subdomain bleiben', 'ui.addsidSubdomain', [
+          ['Deaktiviert', 0],
+          ['Nur aktuelle', 1],
+          ['Aktuelle [Original]', 2],
+          ['Original [Aktuelle]', 3],
+        ], 2)
+  ]);
+
+  this.AddCategory('Such-Ansicht', [
+    this.AddSetting( 'Zus&auml;tzliche Navigationslinks bei leeren Suchergebnissen', 'pagehack.extSearchPage', 'bool', false),
+    this.AddSetting( 'Zus&auml;tzliche Hervorhebungen bei Suchergebnissen', 'search.moremarkup', 'bool', true)
+  ]);
+
+  this.AddCategory('Thread-Ansicht', [
+    this.AddSetting( 'Buttons f&uuml;r Benutzer-Hervorhebung', 'topic.button_stalk', 'bool', true),
+    this.AddSetting( 'Buttons f&uuml;r Benutzer-Ausblendung', 'topic.button_killfile', 'bool', true),
+    this.AddSetting( 'Beitr&auml;ge von mir hervorheben', 'topic.highlight_me', 'color', 0),
+    this.AddSetting( 'Beitr&auml;ge von ausgew&auml;hlten Nutzern hervorheben','topic.highlight_stalk', 'color', 0),
+    this.AddSetting( 'Beitr&auml;ge von Moderatoren/Admins hervorheben','topic.highlight_mod', 'color', 0),
+    this.AddSetting( 'Hervorzuhebende Benutzer<br />(Ein Benutzer je Zeile)','topic.user_stalk', 'list', []),
+    this.AddSetting( 'Benutzer ausblenden','topic.killFileType', [
+          ['Nein', 0],
+          ['Beitrag verkleinern', 1],
+          ['Minimal', 2],
+          ['Farblich markieren', 3]
+        ], 1),
+    this.AddSetting( 'Terrorkartei<br />(Ein Benutzer je Zeile)','topic.user_killfile', 'list', [])
+  ]);
+
+  this.AddCategory('Shoutbox', [
+    this.AddSetting( 'Eingabefeld vergr&ouml;&szlig;ern', 'sb.longInput', 'bool', false),
+    this.AddSetting( 'Shoutenden Username hervorheben', 'sb.boldUser', 'bool', false),
+    this.AddSetting( 'Shoutbox-Anekdoter aktivieren', 'sb.anek_active', 'bool', false),
+    this.AddSetting( 'Anekdoten oben einf&uuml;gen', 'sb.anek_reverse', 'bool', true),
+    this.AddSetting( 'Shouts von mir hervorheben<br />(nur mit Auto-Login)', 'sb.highlight_me', 'color', 0),
+    this.AddSetting( 'Shouts von ausgew&auml;hlten Nutzern hervorheben', 'sb.highlight_stalk', 'color', 0),
+    this.AddSetting( 'Shouts von Moderatoren/Admins hervorheben', 'sb.highlight_mod', 'color', 0),
+    this.AddSetting( 'Hervorzuhebende Benutzer<br />(Ein Benutzer je Zeile)', 'sb.user_stalk', 'list', []),
+    this.AddSetting( 'Zeige Link zum Schreiben einer PN an Benutzer', 'sb.pnlink_active', 'bool', true)
+  ]);
+
   this.RestoreDefaults();
   this.LoadFromDisk();
   var co = document.cookie.split(';');
@@ -1048,42 +1126,20 @@ SettingsStore.prototype = {
     }
   },
 
+  AddCategory: function(title, settings) {
+    this.Categories.push({title: title, settings: settings});
+  },
+
+  AddSetting: function(description, key, type, standard) {
+    return {desc: description, key: key, type: type, standard: standard};
+  },
   RestoreDefaults: function() {
     this.Values = new Object();
-    this.Values['pagehack.monospace']=true;
-    this.Values['pagehack.imgMaxWidth']=false;
-    this.Values['pagehack.extSearchPage']=true;
-    this.Values['pagehack.extPostSubmission']=true;
-    this.Values['pagehack.quickProfMenu']=true;
-    this.Values['pagehack.quickSearchMenu']=true;
-    this.Values['pagehack.smileyOverlay']=1;
-    this.Values['pagehack.answeredLinks']=true;
-
-    this.Values['ui.showDropShadow']=true;
-    this.Values['ui.useFlatStyle']=false;
-    this.Values['ui.betaFeatures']=false;
-    this.Values['ui.disableShouting']=false;
-
-    this.Values['sb.longInput']=false;
-    this.Values['sb.boldUser']=false;
-    this.Values['sb.anek_active']=true;
-    this.Values['sb.anek_reverse']=true;
-    this.Values['sb.highlight_me']=0;
-    this.Values['sb.highlight_mod']=0;
-    this.Values['sb.highlight_stalk']=0;
-    this.Values['sb.user_stalk']=new Array();
-    this.Values['sb.pnlink_active']=true;
-
-    this.Values['search.moremarkup']=true;
-
-    this.Values['topic.highlight_me']=0;
-    this.Values['topic.highlight_mod']=0;
-    this.Values['topic.highlight_stalk']=0;
-    this.Values['topic.user_stalk']=new Array();
-    this.Values['topic.user_killfile']=new Array();
-    this.Values['topic.killFileType']=1;
-    this.Values['topic.button_stalk']=true;
-    this.Values['topic.button_killfile']=true;
+    this.Categories.forEach(function(c){
+      c.settings.forEach(function(s) {
+        this.Values[s.key] = s.standard;
+      }, this);
+    }, this);
   },
 
   GetValue: function(sec,key) {
@@ -1099,73 +1155,23 @@ SettingsStore.prototype = {
     tbl.style.cssText = 'width:98%; align:center; margin:5px;';
     var sg = new SettingsGenerator(tbl, this.Window.Document);
     with (sg) {
-      addHeadrow('Design',2);
-      addSettingsRow('Codebl&ouml;cke als monospace anzeigen', createCheckbox('ph_mono', this.GetValue('pagehack','monospace')));
-      addSettingsRow( 'Schlagschatten unter Popup-Fenstern', createCheckbox('ui_dropshadow', this.GetValue('ui','showDropShadow')));
-      addSettingsRow( 'Nutze ein flacheres Layout f&uuml;r Formulare', createCheckbox('ui_flatstyle', this.GetValue('ui', 'useFlatStyle')));
-      addSettingsRow( 'Maximalbreite von Bildern erzwingen', createCheckbox('ph_imgmaxwidth', this.GetValue('pagehack','imgMaxWidth')));
-
-      addHeadrow('Ergonomie',2);
-      addSettingsRow( 'Dropdown-Men&uuml; f&uuml;r Meine Ecke', createCheckbox('ph_ddmyedge', this.GetValue('pagehack','quickProfMenu')));
-      addSettingsRow( 'Dropdown-Men&uuml; f&uuml;r die Suche', createCheckbox('ph_ddsearch', this.GetValue('pagehack','quickSearchMenu')));
-      addSettingsRow( 'Weiterleitung auf ungelesene Themen nach dem Absenden von Beiträgen', createCheckbox('ph_extpost', this.GetValue('pagehack','extPostSubmission')));
-      addSettingsRow( 'Smiley-Auswahlfenster in Overlays &ouml;ffnen',
-          createSelect('ph_smileyOverlay', this.GetValue('pagehack','smileyOverlay'), [
-            ['Nein', 0],
-            ['Ja, verschiebbar', 1],
-            ['Ja, fest', 2],
-          ])
-          );
-      addSettingsRow( '"Meine offenen Fragen" um Inline-Markieren erweitern', createCheckbox('ph_addanswered', this.GetValue('pagehack','answeredLinks')));
-
-      addHeadrow('Entwickler',2);
-      addSettingsRow( 'Zus&auml;tzliche Funktionen f&uuml;r Beta-Tester', createCheckbox('ui_betaFeatures', this.GetValue('ui','betaFeatures')));
-      addSettingsRow( 'Deaktivieren des Absenden von Shouts', createCheckbox('ui_disableShouting', this.GetValue('ui','disableShouting')));
-
-      addHeadrow('Such-Ansicht',2);
-      addSettingsRow( 'Zus&auml;tzliche Navigationslinks bei leeren Suchergebnissen', createCheckbox('ph_extsearch', this.GetValue('pagehack','extSearchPage')));
-      addSettingsRow( 'Zus&auml;tzliche Hervorhebungen bei Suchergebnissen', createCheckbox('search_moremarkup', this.GetValue('search','moremarkup')));
-
-      addHeadrow('Thread-Ansicht',2);
-      addSettingsRow( 'Buttons f&uuml;r Benutzer-Hervorhebung', createCheckbox('topic_button_stalk', this.GetValue('topic','button_stalk')));
-      addSettingsRow( 'Buttons f&uuml;r Benutzer-Ausblendung', createCheckbox('topic_button_killfile', this.GetValue('topic','button_killfile')));
-      addSettingsRow( 'Beitr&auml;ge von mir hervorheben',
-          createColorSelection('topic_highlight_me',this.GetValue('topic','highlight_me'), false)
-          );
-      addSettingsRow( 'Beitr&auml;ge von ausgew&auml;hlten Nutzern hervorheben<br />',
-          createColorSelection('topic_highlight_stalk',this.GetValue('topic','highlight_stalk'), false)
-          );
-      addSettingsRow( 'Beitr&auml;ge von Moderatoren/Admins hervorheben',
-          createColorSelection('topic_highlight_mod',this.GetValue('topic','highlight_mod'), false)
-          );
-      addSettingsRow( 'Hervorzuhebende Benutzer<br />(Ein Benutzer je Zeile)',createArrayInput('topic_user_stalk',this.GetValue('topic','user_stalk')));
-      addSettingsRow( 'Benutzer ausblenden',
-          createSelect('topic_killFileType', this.GetValue('topic','killFileType'), [
-            ['Nein', 0],
-            ['Beitrag verkleinern', 1],
-            ['Minimal', 2],
-            ['Farblich markieren', 3],
-          ])
-          );
-      addSettingsRow( 'Terrorkartei<br />(Ein Benutzer je Zeile)',createArrayInput('topic_user_killfile',this.GetValue('topic','user_killfile')));
-
-      addHeadrow('Shoutbox',2);
-      addSettingsRow( 'Eingabefeld vergr&ouml;&szlig;ern', createCheckbox('sb_longinput', this.GetValue('sb','longInput')));
-      addSettingsRow( 'Shoutenden Username hervorheben', createCheckbox('sb_bolduser', this.GetValue('sb','boldUser')));
-      addSettingsRow( 'Shoutbox-Anekdoter aktivieren', createCheckbox('sb_anek_start', this.GetValue('sb','anek_active')));
-      addSettingsRow( 'Anekdoten oben einf&uuml;gen', createCheckbox('sb_anek_rev', this.GetValue('sb','anek_reverse')));
-      addSettingsRow( 'Shouts von mir hervorheben<br />(nur mit Auto-Login)',
-          createColorSelection('sb_highlight_me',this.GetValue('sb','highlight_me'), false)
-          );
-      addSettingsRow( 'Shouts von ausgew&auml;hlten Nutzern hervorheben<br />',
-          createColorSelection('sb_highlight_stalk',this.GetValue('sb','highlight_stalk'), false)
-          );
-      addSettingsRow( 'Shouts von Moderatoren/Admins hervorheben',
-          createColorSelection('sb_highlight_mod',this.GetValue('sb','highlight_mod'), false)
-          );
-      addSettingsRow( 'Hervorzuhebende Benutzer<br />(Ein Benutzer je Zeile)',createArrayInput('sb_user_stalk',this.GetValue('sb','user_stalk')));
-      addSettingsRow( 'Zeige Link zum Schreiben einer PN an Benutzer',createCheckbox('sb_pnlink', this.GetValue('sb','pnlink_active')));
-
+      this.Categories.forEach(function(c){
+        addHeadrow(c.title, 2);
+        c.settings.forEach(function(s) {
+          var html;
+          var nm = s.key.replace('.','_');
+          switch(s.type) {
+            case 'bool': html = createCheckbox(nm, this.Values[s.key]); break;
+            case 'color': html = createColorSelection(nm, this.Values[s.key], false); break;
+            case 'list': html = createArrayInput(nm, this.Values[s.key]); break;
+            default: if (s.type instanceof Array) {
+              html = createSelect(nm, this.Values[s.key], s.type);
+            } else
+              html='::('+s.type+')';
+          };
+          addSettingsRow(s.desc, html);
+        }, this);
+      }, this);
     }
     this.Window.OptionsTable = tbl;
     this.Window.OptionsGenerator = sg;
@@ -1174,40 +1180,19 @@ SettingsStore.prototype = {
 
   ev_SaveDialog: function(evt) {
     with (EM.Settings.Window.OptionsGenerator) {
-      EM.Settings.SetValue('pagehack','monospace', getBool('ph_mono'));
-      EM.Settings.SetValue('pagehack','quickProfMenu', getBool('ph_ddmyedge'));
-      EM.Settings.SetValue('pagehack','quickSearchMenu', getBool('ph_ddsearch'));
-      EM.Settings.SetValue('pagehack','extSearchPage', getBool('ph_extsearch'));
-      EM.Settings.SetValue('pagehack','extPostSubmission', getBool('ph_extpost'));
-      EM.Settings.SetValue('pagehack','imgMaxWidth', getBool('ph_imgmaxwidth'));
-      EM.Settings.SetValue('pagehack','smileyOverlay', getValue('ph_smileyOverlay'));
-      EM.Settings.SetValue('pagehack','answeredLinks', getBool('ph_addanswered'));
-
-      EM.Settings.SetValue('ui','showDropShadow', getBool('ui_dropshadow'));
-      EM.Settings.SetValue('ui','useFlatStyle', getBool('ui_flatstyle'));
-      EM.Settings.SetValue('ui','betaFeatures', getBool('ui_betaFeatures'));
-      EM.Settings.SetValue('ui','disableShouting', getBool('ui_disableShouting'));
-
-      EM.Settings.SetValue('sb','anek_active', getBool('sb_anek_start'));
-      EM.Settings.SetValue('sb','anek_reverse', getBool('sb_anek_rev'));
-      EM.Settings.SetValue('sb','highlight_me', getValue('sb_highlight_me'));
-      EM.Settings.SetValue('sb','highlight_mod', getValue('sb_highlight_mod'));
-      EM.Settings.SetValue('sb','highlight_stalk', getValue('sb_highlight_stalk'));
-      EM.Settings.SetValue('sb','longInput', getBool('sb_longinput'));
-      EM.Settings.SetValue('sb','boldUser', getBool('sb_bolduser'));
-      EM.Settings.SetValue('sb','user_stalk', getArray('sb_user_stalk'));
-      EM.Settings.SetValue('sb','pnlink_active', getBool('sb_pnlink'));
-
-      EM.Settings.SetValue('search','moremarkup', getBool('search_moremarkup'));
-
-      EM.Settings.SetValue('topic','highlight_me', getValue('topic_highlight_me'));
-      EM.Settings.SetValue('topic','highlight_mod', getValue('topic_highlight_mod'));
-      EM.Settings.SetValue('topic','highlight_stalk', getValue('topic_highlight_stalk'));
-      EM.Settings.SetValue('topic','user_stalk', getArray('topic_user_stalk'));
-      EM.Settings.SetValue('topic','user_killfile', getArray('topic_user_killfile'));
-      EM.Settings.SetValue('topic','killFileType', getArray('topic_killFileType'));
-      EM.Settings.SetValue('topic','button_stalk', getBool('topic_button_stalk'));
-      EM.Settings.SetValue('topic','button_killfile', getBool('topic_button_killfile'));
+      EM.Settings.Categories.forEach(function(c){
+        c.settings.forEach(function(s) {
+          var nm = s.key.replace('.','_');
+          switch(s.type) {
+            case 'bool': EM.Settings.Values[s.key] = getBool(nm); break;
+            case 'color': EM.Settings.Values[s.key] = getValue(nm); break;
+            case 'list': EM.Settings.Values[s.key] = getArray(nm); break;
+            default: if (s.type instanceof Array) {
+              EM.Settings.Values[s.key] = getValue(nm);
+            }
+          };
+        }, this);
+      }, this);
     }
     Settings_SaveToDisk();
     if (confirm('Änderungen gespeichert.\nSie werden aber erst beim nächsten Seitenaufruf wirksam. Jetzt neu laden?')){
@@ -1249,36 +1234,22 @@ SettingsStore.prototype = {
     this.Window = new UserWindow('EdgeMonkey :: Einstellungen', 'em_wnd_settings',
             'HEIGHT=400,WIDTH=500,resizable=yes,scrollbars=yes', this.Window);
     this.FillDialog();
-//    var tbl = this.Window.Document.createElement('table');
-    var tbl = this.Window.OptionsTable;
-    var row = tbl.insertRow(-1);
-    with (row) {
-      var c = document.createElement('td');
-      row.appendChild(c);
-      c.colSpan = 2;
-      c.className = 'catBottom';
-      c.style.cssText = 'text-align:center;';
-      c.innerHTML = '&nbsp;';
-      c.innerHTML += '<input type="button" class="mainoption" value="Speichern">';
-      c.innerHTML += '&nbsp;&nbsp;';
-      c.innerHTML += '<input type="button" class="liteoption" onclick="window.close()" value="Schlie&szlig;en">';
-      c.innerHTML += '&nbsp;';
-      var i = c.getElementsByTagName('input');
+    with (this.Window.OptionsGenerator.addFootrow('',2)) {
+      innerHTML = '&nbsp;';
+      innerHTML += '<input type="button" class="mainoption" value="Speichern">';
+      innerHTML += '&nbsp;&nbsp;';
+      innerHTML += '<input type="button" class="liteoption" onclick="window.close()" value="Schlie&szlig;en">';
+      innerHTML += '&nbsp;';
+      var i = getElementsByTagName('input');
       addEvent(i[0], 'click', this.ev_SaveDialog);
     }
-    var row = tbl.insertRow(-1);
-    with (row) {
-      var c = document.createElement('td');
-      row.appendChild(c);
-      c.colSpan = 2;
-      c.className = 'catBottom';
-      c.style.cssText = 'text-align:center;';
-      c.innerHTML = '&nbsp;';
-      c.innerHTML += '<input type="button" value="Alles zur&uuml;cksetzen" class="liteoption">';
-      c.innerHTML += '&nbsp;&nbsp;';
-      c.innerHTML += '<input type="button" value="User-Cache l&ouml;schen" class="liteoption">';
-      c.innerHTML += '&nbsp;';
-      var i = c.getElementsByTagName('input');
+    with (this.Window.OptionsGenerator.addFootrow('',2)) {
+      innerHTML = '&nbsp;';
+      innerHTML += '<input type="button" value="Alles zur&uuml;cksetzen" class="liteoption">';
+      innerHTML += '&nbsp;&nbsp;';
+      innerHTML += '<input type="button" value="User-Cache l&ouml;schen" class="liteoption">';
+      innerHTML += '&nbsp;';
+      var i = getElementsByTagName('input');
       addEvent(i[0], 'click', this.ev_ClearAll);
       addEvent(i[1], 'click', this.ev_ClearUIDCache);
     }
@@ -1640,6 +1611,8 @@ function ShoutboxControls() {
                   '<img border="0" style="border-left: 1px solid rgb(46, 95, 134); width: 7px; height: 9px;" alt="Smaller" src="./graphics/categorie_up.gif"/></a>'+
                '<a href="#" title="Gr&ouml;&szlig;er" onclick="EM.Shouts.ev_resize(+50); return false;">'+
                   '<img border="0" alt="Move category down" src="./graphics/categorie_down.gif"/></a>';
+  if (EM.Settings.GetValue('sb', 'anek_active'))
+    sp.innerHTML += '<a href="#" onclick="EM.ShoutWin.ev_anekdoteAll(); return false;" style="font-size: 10px; margin: 0 5px;">A</a>';
   ifr.parentNode.appendChild(sp);
   var h=EM.Settings.GetValue('sb','displayHeight');
   if (!isEmpty(h)) ifr.style.height = h+'px';
@@ -1768,6 +1741,28 @@ ShoutboxControls.prototype = {
       //Search for improperly started tags ...
       uncleanBBCode |= /\[(?!\w|\/\w|\.{3})/i.test(s);
 
+      if(!uncleanBBCode) {
+        var open = [];
+        s.replace(/(?!\[\.\.\.\])\[(\/)?(\w+)/g,
+          function (m,c,t){
+            var ic = undefined!=c;
+            if(ic) {
+              if(!open.length) {
+                open.push('+');
+              } else {
+                uncleanBBCode |= t!=open.pop();
+              }
+            } else {
+              open.push(t);
+            }
+            return m;
+          });
+        uncleanBBCode |= !!open.length;
+      }
+
+      //Search for improperly started tags ...
+      uncleanBBCode |= /\[7\w+\]/i.test(s);
+
       if(uncleanBBCode)
       {
         if(!confirm("Dein Shout scheint mit ungültigen oder falsch geschriebenen BBCodes infiziert zu sein. \"Abbrechen\" um dies zu korrigieren.")) {
@@ -1822,6 +1817,9 @@ ShoutboxControls.prototype = {
                           return before+"[url=http://www."+re.forum+".de/search.php?search_keywords="+
                                   encodeURIComponent(re.found)+"]"+re.found+"[/url]";
                         }
+                      } break;
+                      case 'K@': {
+                        return before+"[url="+txt+"]*klick*[/url]";
                       } break;
                     }
                     return $0;
@@ -1960,12 +1958,19 @@ ShoutboxAnekdoter.prototype = {
     }
     return res.join('');
   },
+  AddAnekdote: function(item) {
+    this.list.push({
+      user: item.getElementsByTagName('a')[0].firstChild.innerHTML,
+      time: item.getElementsByTagName('span')[2].innerHTML,
+      shout: this.convertTag(item.childNodes[1])
+    });
+  },
   Anekdote: function(item) {
-    var o = {user:'',time:'',shout:''};
-    o.user = item.getElementsByTagName('a')[0].firstChild.innerHTML;
-    o.time = item.getElementsByTagName('span')[2].innerHTML;
-    o.shout = this.convertTag(item.childNodes[1]);
-    this.list.push(o);
+    this.AddAnekdote(item)
+    this.UpdateContent();
+  },
+  AnekdoteAll: function(items) {
+    items.forEach(this.AddAnekdote, this)
     this.UpdateContent();
   },
   focus: function() {
@@ -2068,14 +2073,23 @@ ShoutboxWindow.prototype = {
       head.appendChild(style);
     }
   },
-
-  ev_anekdote: function(idx) {
+  EnsureWindow: function() {
     if (!EM.Anekdoter || EM.Anekdoter.Wnd.Window.closed) {
       EM.Anekdoter = new ShoutboxAnekdoter();
     }
+  },
+  ev_anekdote: function(idx) {
+    this.EnsureWindow();
     EM.Anekdoter.Anekdote(this.shouts[idx]);
     EM.Anekdoter.focus();
   },
+  ev_anekdoteAll: function() {
+    this.EnsureWindow();
+    var rev = this.shouts.slice(0);
+    rev.reverse();
+    EM.Anekdoter.AnekdoteAll(rev);
+    EM.Anekdoter.focus();
+  }
 }
 
 function SmileyWindow(target) {
@@ -2357,6 +2371,9 @@ function Pagehacks() {
   if(EM.Settings.GetValue('pagehack','quickProfMenu')) {
     this.AddQuickProfileMenu();
   }
+  if(EM.Settings.GetValue('pagehack','quickLoginMenu')) {
+    this.AddQuickLoginMenu();
+  }
   if(EM.Settings.GetValue('pagehack','quickSearchMenu')) {
     this.AddQuickSearchMenu();
   }
@@ -2379,6 +2396,9 @@ function Pagehacks() {
   }
   if(/\bprivmsg\.php/.test(Location)) {
     EM.Buttons.addButton('/graphics/Postings.gif','PN-Threads verfolgen','EM.Pagehacks.followPMThreads()','em_followPMThreads');
+  }
+  if(EM.Settings.GetValue('ui','addsid')) {
+    this.AddLinkSIDs();
   }
 }
 
@@ -2868,6 +2888,11 @@ Pagehacks.prototype = {
     }
   },
 
+  AddQuickLoginMenu: function() {
+    var link = queryXPathNode(unsafeWindow.document, "/html/body/table/tbody/tr[3]/td[2]/table/tbody/tr/td[4]/a[img][1]");
+    link.setAttribute('onclick','return EM.Pagehacks.QuickLoginMenu()');
+  },
+
   AddQuickSearchMenu: function() {
     var link = queryXPathNode(unsafeWindow.document, "/html/body/table/tbody/tr[3]/td[2]/table/tbody/tr/td[7]/a[img]");
     link.setAttribute('onclick','return EM.Pagehacks.QuickSearchMenu()');
@@ -2921,6 +2946,50 @@ Pagehacks.prototype = {
         );
 
     w.ContentArea.appendChild(tbl);
+
+    return false;
+  },
+
+  QuickLoginMenu: function() {
+    var link = queryXPathNode(unsafeWindow.document, "/html/body/table/tbody/tr[3]/td[2]/table/tbody/tr/td[4]/a[img][1]");
+    var bcr = link.getBoundingClientRect();
+    var coords = new Point(bcr.left, bcr.bottom+10);
+    coords.TranslateWindow();
+
+    var w = new OverlayWindow(coords.x,coords.y,320,108,'','em_QLM');
+    w.InitDropdown();
+
+    var Eru = unsafeWindow.document.location;
+    var redirectLink = Eru.pathname.replace(/^\//, '') + Eru.search.replace(/sid=[0-9a-f]+/ig, '').replace(/([\?&])&/g, '\1') + Eru.hash;
+
+    var tbl = w.CreateMenu();
+    var sg = new SettingsGenerator(tbl, unsafeWindow.document);
+
+    sg.addHeadrow(("" != EM.User.loggedOnSessionId) ? "Benutzerwechsel" : "Anmeldung", 2);
+    sg.addSettingsRow(
+        '<span class="gen">Mitgliedsname:</span>',
+        '<input type="text" value="" maxlength="40" size="25" name="username">'
+        );
+    sg.zebra = false;
+    sg.addSettingsRow(
+        '<span class="gen">Kennwort:</span>',
+        '<input type="password" maxlength="32" size="25" name="password">'
+        );
+    sg.zebra = false;
+    sg.addSettingsRow(
+        '<span class="gen"><label for="autologin">Angemeldet bleiben:</label></span>',
+        '<input type="checkbox" id="autologin" name="autologin">'
+        );
+    sg.addFootrow('<input type="hidden" value="'+encodeURI(redirectLink)+'" name="redirect"><input type="submit" value="Login" class="mainoption" name="login">', 2);
+
+    var f = unsafeWindow.document.createElement('form');
+    f.name = "loginForm";
+    f.method = "post";
+    f.target = "_top";
+    f.action="login.php";
+
+    f.appendChild(tbl);
+    w.ContentArea.appendChild(f);
 
     return false;
   },
@@ -3079,6 +3148,7 @@ Pagehacks.prototype = {
       tdBottom.className = tdBottom.className.replace(/Highlight/, '');
 
       var user_b = queryXPathNode(tdProfile, "b");
+      var post_idlink = queryXPathNode(tdProfile, "a");
       var it_div = document.createElement('span');
       var it_span_user = document.createElement('span');
       var it_span_marks = document.createElement('span');
@@ -3086,7 +3156,9 @@ Pagehacks.prototype = {
       it_span_user.className = 'incell left';
       it_span_marks.className = 'gensmall incell right';
       user_b.parentNode.removeChild(user_b);
+      post_idlink.parentNode.removeChild(post_idlink);
       it_span_user.appendChild(user_b);
+      it_span_user.insertBefore(post_idlink, user_b);
       if(EM.Settings.GetValue('topic','button_stalk')) {
         var l_stalk = EM.User.userlinkButtonFromLink(document, strUser, EM.User.ev_stalk_t, 'topic', 'stalk');
         it_span_marks.appendChild(l_stalk);
@@ -3099,7 +3171,6 @@ Pagehacks.prototype = {
       it_div.appendChild(it_span_marks);
       tdProfile.removeChild(queryXPathNode(tdProfile, "br"));
       tdProfile.insertBefore(it_div, tdProfile.firstChild);
-
     }
 
     //Leyenfilter
@@ -3156,6 +3227,76 @@ Pagehacks.prototype = {
     }
     if(threads.crawlPMs(title, maxdpt)) {
       threads.displayResults();
+    }
+  },
+  AddLinkSIDs: function () {
+    var links = EM.Buttons.mainTable.getElementsByTagName('a');
+    for (var i=0; i<links.length; i++) {
+      var hr = links[i];
+      if (hr.className=='postlink' &&
+          /.*\.(delphi|c-sharp)-(forum|library)\.de|.*\.entwickler-ecke\.de/.test(hr.host) &&
+          hr.host!=window.location.host &&
+          /^\/(view(topic|forum)\.php|(topic|forum)_.*\.html)/.test(hr.pathname)) {
+        var oldsearch = hr.search;
+        var prms = hr.search.substr(1).split('&');
+        for (var j=0; j<prms.length;j++) {
+          if (/^sid=/i.test(prms[j])) {
+            prms.splice(j--,1);
+          }
+        }
+        prms.push('sid='+EM.User.loggedOnSessionId);
+        hr.search='?'+prms.join('&');
+        hr.title='EE-Interner Link (Session wird übernommen)';
+        if(EM.Settings.GetValue('ui','betaFeatures') && EM.Settings.GetValue('ui','addsidSubdomain')) {
+          function makeLinkBtn(after, href) {
+            var ax = document.createElement('a');
+            ax.className='gensmall';
+            ax.innerHTML='<img border="0" style="margin-left:2px" src="/templates/subSilver/images/icon_latest_reply.gif" />';
+            after.parentNode.insertBefore(ax,after.nextSibling);
+            ax.href = href;
+            return ax;
+          }
+
+          var here = window.location.host.match(/^(.*?)\./);
+          here = here?here[1]:'www';
+          var there = hr.host.replace(/^(.*?)\./,here+'.');
+          switch (EM.Settings.GetValue('ui','addsidSubdomain')) {
+            case '1': {
+              hr.host = there;
+              hr.title = 'Auf gleicher Subdomain bleiben';
+              if (window.location.host==there) {
+                // only subdomain would change, but this link doesnt-> no change needed
+                hr.search = oldsearch;
+              } else {
+                hr.title+= ' (Session wird übernommen)';
+              }
+            }; break;
+            case '2': {
+              var ax = makeLinkBtn(hr, hr.href);
+              ax.title = hr.title;
+              hr.host = there;
+              hr.title = 'Auf gleicher Subdomain bleiben';
+              if (window.location.host==there) {
+                // only subdomain would change, but this link doesnt-> no change needed
+                hr.search = oldsearch;
+              } else {
+                hr.title+= ' (Session wird übernommen)';
+              }
+            }; break;
+            case '3': {
+              var ax = makeLinkBtn(hr, hr.href);
+              ax.host = there;
+              ax.title = 'Auf gleicher Subdomain bleiben';
+              if (window.location.host==there) {
+                // only subdomain would change, but this link doesnt-> no change needed
+                ax.search = oldsearch;
+              } else {
+                ax.title+= ' (Session wird übernommen)';
+              }
+            } ; break;
+          }
+        }
+      }
     }
   }
 }
@@ -3220,6 +3361,12 @@ function upgradeSettings(){
 
 function initEdgeApe() {
   //No upgrade from inside any popup
+  try {
+    //Work around Firefox Security by Obscurity
+    isEmpty(window.opener);
+  } catch(foo) {
+    window.opener = null;
+  }
   if(isEmpty(window.opener) && (window.parent==window) )
   {
     upgradeSettings();

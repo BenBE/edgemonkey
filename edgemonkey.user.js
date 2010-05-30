@@ -2238,8 +2238,11 @@ PNThreadGrabber.prototype = {
   extractPlainTitle: function(t) {
     var m = t.match(/(Re:\s+)*(.*)/);
     t = m[2] || '';
-    while(/&amp;/.test(t) && !/[<>"]/.test(t)) {
-        t = t.replace('&amp;', '&');
+    while(/&amp;|&gt;|&lt;|&quot;/.test(t) && !/[<>"]/.test(t)) {
+        t = t.replace(/&quot;/g, '"');
+        t = t.replace(/&lt;/g, '<');
+        t = t.replace(/&gt;/g, '>');
+        t = t.replace(/&amp;/g, '&');
     }
     return t;
   },

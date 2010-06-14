@@ -2409,7 +2409,7 @@ PNThreadGrabber.prototype = {
         title: this.unescapeTitle(queryXPathNode(row, './td[2]/span/a[2]').textContent),
         postID: queryXPathNode(row, './td[2]/span/a[2]').href.match(/p=(\d+)/)[1],
         postSpecial: (function(){var a=queryXPathNode(row, './td[2]/span/b'); return a?a.textContent:'';})(),
-        partner: queryXPathNode(row, './td[2]/span[2]/span').textContent,
+        partner: trim(queryXPathNode(row, './td[2]/span[2]/span').textContent),
         partnerID: (function(){var a=queryXPathNode(row, './td[2]/span[2]/span/a'); return a?a.href.match(/u=(\d+)/)[1]:null;})(),
         date: this.postDatetoJSDate(queryXPathNode(row,'./td[3]/span').innerHTML)
       });

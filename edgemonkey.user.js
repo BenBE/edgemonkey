@@ -636,7 +636,7 @@ CacheMonkey.prototype = {
         } else if(!isUndef(timeout)) {
             val.et = timeout;
         }
-        val.lr = new Data().getTime()/1000;
+        val.lr = new Date().getTime()/1000;
         val.data = value;
         cacheData[key] = val;
         this.data[name] = cacheData;
@@ -652,7 +652,7 @@ CacheMonkey.prototype = {
         if(isUndef(val)) {
             val = {lr:0, et:86400, data:null};
         }
-        val.lr = new Data().getTime()/1000;
+        val.lr = new Date().getTime()/1000;
         cacheData[key] = val;
         this.data[name] = cacheData;
         this.store();

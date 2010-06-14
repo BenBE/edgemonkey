@@ -2370,7 +2370,18 @@ PNThreadGrabber.prototype = {
     return m[2] || '';
   },
 
-  crawlPMPage: function(box,page) {
+  crawlPMPage: function(box,page,refresh) {
+  	if(isUndef(refresh)) {
+  	  refresh = false;
+  	}
+
+  	if(!refresh) {
+  	  var cachedResult = EM.Cache.get('pmthreads',box+','+page);
+  	  if(cachedResult.current) {
+  	    return cachedResult.data;
+  	  }
+  	}
+
     var start = page*50;
 
     var lister = new AJAXObject();
@@ -2403,6 +2414,8 @@ PNThreadGrabber.prototype = {
         date: this.postDatetoJSDate(queryXPathNode(row,'./td[3]/span').innerHTML)
       });
     }, this);
+
+    EM.Cache.put('pmthreads',box+','+page,messages,900);
 
     return messages;
   },

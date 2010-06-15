@@ -2352,7 +2352,7 @@ PNThreadGrabber.prototype = {
     //"Mo 07.12.09<br>23:17"
     // good thing DF always returns that and ignores user settings...
     var d = pd.match(/\S+\s(\d+)\.(\d+)\.(\d+)<\S+>(\d+):(\d+)/);
-    return new Date(2000+parseInt(d[3]), d[2]-1, d[1], d[4], d[5], 0);
+    return new Date(2000+parseInt(d[3]), d[2]-1, d[1], d[4], d[5], 0).getTime()/1000;
   },
 
   unescapeTitle: function(t) {
@@ -2409,7 +2409,7 @@ PNThreadGrabber.prototype = {
         title: this.unescapeTitle(queryXPathNode(row, './td[2]/span/a[2]').textContent),
         postID: queryXPathNode(row, './td[2]/span/a[2]').href.match(/p=(\d+)/)[1],
         postSpecial: (function(){var a=queryXPathNode(row, './td[2]/span/b'); return a?a.textContent:'';})(),
-        partner: trim(queryXPathNode(row, './td[2]/span[2]/span').textContent),
+        partner: queryXPathNode(row, './td[2]/span[2]/span').textContent.trim(),
         partnerID: (function(){var a=queryXPathNode(row, './td[2]/span[2]/span/a'); return a?a.href.match(/u=(\d+)/)[1]:null;})(),
         date: this.postDatetoJSDate(queryXPathNode(row,'./td[3]/span').innerHTML)
       });
@@ -2503,7 +2503,7 @@ PNThreadGrabber.prototype = {
         }
         with(r.insertCell(-1)) {
           className = rowClass;
-          innerHTML = '<span class="gensmall">'+post.date.toLocaleString()+'</span>'
+          innerHTML = '<span class="gensmall">'+new Date(1000*post.date).toLocaleString()+'</span>'
         }
       },this);
     },this);

@@ -2390,11 +2390,13 @@ PNThreadGrabber.prototype = {
 
     var table = queryXPathNode(host, '/table[@class="overall"]/tbody/tr[2]/td/div/form/table[@class="forumline"]');
     if (!table) {
+    	EM.Cache.put('pmthreads',box+','+page,[],300);
         return null;
     }
 
     var rows = queryXPathNodeSet(table, './/tr[./td[starts-with(@id,"folderFor")]]');
     if (!rows || !rows.length) {
+    	EM.Cache.put('pmthreads',box+','+page,[],300);
         return [];
     }
 

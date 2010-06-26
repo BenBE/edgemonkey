@@ -325,12 +325,12 @@ function isUndef(what)
 
 function isEmpty(what)
 {
-  return isUndef(what) || null==what;
+  return isUndef(what) || (null==what);
 }
 
 function isHTMLElement(what)
 {
-  return !isUndef(what) &&
+  return !isEmpty(what) &&
    ((what instanceof HTMLElement) || (what.tagName));
 }
 
@@ -418,6 +418,18 @@ Array.prototype.uniq = function() {
     if (res.indexOf(a)<0) res.push(a);
   },this);
   return res;
+}
+
+RegExp.prototype.execAll=function(data) {
+  var result = [];
+  var r;
+  while((r = this.exec(data))!= null) {
+    result.push(r);
+  }
+  if (result.length)
+    return result;
+  else
+    return null;
 }
 
 function encodeLongShout(text)
@@ -564,7 +576,7 @@ CacheMonkey.prototype = {
     },
 
     checkCurrent: function(value){
-        return (new Date().getTime()/1000) < (value.lr + value.et);
+        return (new Date().getTime()/1000) < (1*value.lr + 1*value.et);
     },
 
     clear: function(name) {
@@ -579,12 +591,12 @@ CacheMonkey.prototype = {
 
     clean: function() {
         var cacheData = this.data[name];
-        if(isUndef(cacheData)) {
+        if(isEmpty(cacheData)) {
             return;
         }
         for(var key in cacheData) {
             var value = this.get(name, key);
-            if(!value.current && (new Date().getTime()/1000) > (value.lr + 5 * value.et)) {
+            if(!value.current && (new Date().getTime()/1000) > (value.lastRefresh + 5 * value.expireTimeout)) {
                 delete cacheData[key];
             }
         }
@@ -600,7 +612,7 @@ CacheMonkey.prototype = {
 
     get: function(name, key) {
         var cacheData = this.data[name];
-        if(isUndef(cacheData)) {
+        if(isEmpty(cacheData)) {
             return {
                 lastRefresh:null,
                 expireTimeout:0,
@@ -609,7 +621,7 @@ CacheMonkey.prototype = {
                 };
         }
         var val = cacheData[key];
-        if(isUndef(val)) {
+        if(isEmpty(val)) {
             return {
                 lastRefresh:null,
                 expireTimeout:0,
@@ -618,8 +630,8 @@ CacheMonkey.prototype = {
                 };
         }
         return {
-            lastRefresh:val.lr,
-            expireTimeout:val.et,
+            lastRefresh:1*val.lr,
+            expireTimeout:1*val.et,
             current:this.checkCurrent(val),
             data:val.data
             };
@@ -627,14 +639,14 @@ CacheMonkey.prototype = {
 
     put: function(name, key, value, timeout) {
         var cacheData = this.data[name];
-        if(isUndef(cacheData)) {
+        if(isEmpty(cacheData)) {
             cacheData = {};
         }
         var val = cacheData[key];
-        if(isUndef(val)) {
-            val = {lr:0, et:isUndef(timeout)?86400:timeout, data:null};
-        } else if(!isUndef(timeout)) {
-            val.et = timeout;
+        if(isEmpty(val)) {
+            val = {lr:0, et:isEmpty(timeout)?86400:1*timeout, data:null};
+        } else if(!isEmpty(timeout)) {
+            val.et = 1*timeout;
         }
         val.lr = new Date().getTime()/1000;
         val.data = value;
@@ -643,14 +655,16 @@ CacheMonkey.prototype = {
         this.store();
     },
 
-    touch: function(name, key) {
+    touch: function(name, key, timeout) {
         var cacheData = this.data[name];
-        if(isUndef(cacheData)) {
-            cacheData = [];
+        if(isEmpty(cacheData)) {
+            cacheData = {};
         }
         var val = cacheData[key];
-        if(isUndef(val)) {
-            val = {lr:0, et:86400, data:null};
+        if(isEmpty(val)) {
+            val = {lr:0, et:isEmpty(timeout)?86400:1*timeout, data:null};
+        } else if(!isEmpty(timeout)) {
+        	val.et = 1*timeout;
         }
         val.lr = new Date().getTime()/1000;
         cacheData[key] = val;
@@ -957,21 +971,17 @@ function bringToFront(obj)
 function OverlayWindow(x,y,w,h,content,id)
 {
   //Fix Popups that open to much to the right ...
-  console.log("x:"+x+",y:"+y+",w:"+w+",h:"+h);
   if (x+w+10 > unsafeWindow.innerWidth - 30){
       x = unsafeWindow.innerWidth - 30 - w - 10;
   }
 
-  console.log('Overlay start');
   this.Outer = this.createElement('div');
   this.Outer.className='overlayWin';
   this.Outer.style.cssText = 'overflow:visible; left:'+x+';top:'+y+';min-width:'+w+';min-height:'+h+';width:'+w+';height:'+h;
   this.id = id;
 
-  console.log('Overlay Frame Window');
   this.Frame = this.createElement('div');
 
-  console.log('Overlay Drop Shadow');
   this.Shadows = [];
   var pwn = this.Outer;
   var swtop = 0;
@@ -995,7 +1005,6 @@ function OverlayWindow(x,y,w,h,content,id)
   this.Frame.style.cssText = 'overflow:visible;position:relative;background:url(./graphics/navBar.gif);'+
                                    'border:2px solid #197BB5;left:0;top:-'+swtop+';min-width:'+w+';min-height:'+h;
 
-  console.log('Overlay Content Area');
   this.ContentArea=this.createElement('div');
   this.Frame.appendChild(this.ContentArea);
   this.ContentArea.innerHTML=content;
@@ -1003,7 +1012,6 @@ function OverlayWindow(x,y,w,h,content,id)
 
   this.BringToFront();
   this.showing=true;
-  console.log('Overlay finish');
   document.getElementsByTagName('body')[0].appendChild(this.Outer);
   document.overlayWindows.add(this);
 }
@@ -1016,12 +1024,10 @@ OverlayWindow.prototype = {
   },
 
   InitWindow: function() {
-    console.log('Overlay Caption Bar Window');
     this.TitleBar=this.createElement('div');
     this.Frame.insertBefore(this.TitleBar, this.ContentArea);
     this.TitleBar.style.cssText='text-align:right;background:url(../templates/subSilver/images/cellpic3.gif);padding:3px;cursor:move;';
 
-    console.log('Overlay Caption Bar Close Button');
     this.moving = false;
     this.evmousedown = addEvent(this.TitleBar,'mousedown',function(dv,event) {
       var win = dv.Window;
@@ -1063,7 +1069,6 @@ OverlayWindow.prototype = {
   },
 
   InitDropdown: function() {
-    console.log('Overlay Caption Bar Window');
     this.Outer.style.zIndex=1000;
 
     this.evgmousedown = addGlobalEvent(this.Frame,'mousedown',function(dv,event) {
@@ -1153,7 +1158,13 @@ function SettingsStore() {
           ['Ja, fest', 2],
         ], 1),
     this.AddSetting( '"Meine offenen Fragen" um Inline-Markieren erweitern', 'pagehack.answeredLinks', 'bool', true),
-    this.AddSetting( 'Links auf Unterforen mit SessionID versehen', 'ui.addsid', 'bool', true)
+    this.AddSetting( 'Links auf Unterforen mit SessionID versehen', 'ui.addsid', 'bool', true),
+    this.AddSetting( 'Automatisch auf neue PNs pr&uuml;fen', 'pageghack.pnautocheck',[
+          ['Nein', 0],
+          ['5 Minuten', 5],
+          ['10 Minuten', 10],
+          ['15 Minuten', 15]
+        ], 0)
   ]);
   this.AddCategory('Entwickler', [
     this.AddSetting( 'Zus&auml;tzliche Funktionen f&uuml;r Beta-Tester', 'ui.betaFeatures', 'bool', false),
@@ -1370,6 +1381,223 @@ SettingsStore.prototype = {
   }
 }
 
+function PNAPI() {
+  ['inbox','outbox','sentbox','savebox'].forEach(function(b) {
+    this[b]=new PNAPI.PNBox(b);
+  },this);
+}
+
+PNAPI.VAPN_Team = 0;
+PNAPI.VAPN_User = 1;
+PNAPI.VAPN_Post = 2;
+PNAPI.VAPN_Topic = 3;
+PNAPI.VAPN_Synonym = 4;
+PNAPI.VAPN_BlogEntry = 5;
+PNAPI.VAPN_BlogComment = 6;
+
+PNAPI.prototype = {
+  sendPN: function(recipient, title, message) {
+    if("" == EM.User.loggedOnSessionId) {
+      return false;
+    }
+    var pndata = {
+      username: recipient,
+      subject: title,
+      message: message,
+      folder:'inbox',
+      mode:'post',
+      post_submit:'Absenden'
+    };
+    var ajax = new AJAXObject();
+    var res = ajax.SyncRequest('/privmsg.php', pndata);
+    return /Deine\s+Nachricht\s+wurde\s+gesendet\./.test(res);
+  },
+  sendVAPN: function(reftype,id,subject,message) {
+    if("" == EM.User.loggedOnSessionId) {
+      return false;
+    }
+    var vapndata = {
+      mode:'new',
+      ref_type:reftype,
+      subject: title,
+      message: message,
+      post_submit:'Absenden'
+    };
+    if(reftype != PNAPI.VAPN_Team) {
+        vapndata.id = id;
+    }
+    var ajax = new AJAXObject();
+    var res = ajax.SyncRequest('/vc.php?mode=new&ref_type='+reftype+(reftype == PNAPI.VAPN_Team?'':'&id='+id), vapndata);
+    return /Nachricht\s+erfolgreich\s+gesendet!/.test(res);
+  },
+  getUnread: function(box,count) {
+    var e = EM.PN[box];
+    if (e) {
+      return e.list(0,count).filter(function(a) {
+        return a.unread;
+      });
+    }
+    return null;
+  }
+}
+
+PNAPI.PNBox = function (boxname) {
+  this.box = boxname;
+}
+
+PNAPI.PNBox.prototype = {
+  list: function(first,count) {
+    var p1 = Math.floor(first / 50);
+    var pl = Math.floor((first+count-1) / 50);
+    var result = [];
+
+    for (var i=p1; i<=pl;i++) {
+      var cachedResult = EM.Cache.get('pmlisting',this.box+','+i);
+      if(!cachedResult.current) {
+        cachedResult = this.updatePage(i);
+      } else {
+        cachedResult = cachedResult.data;
+      }
+      for (var k=0; k<cachedResult.length;k++) {
+        if (cachedResult[k].pos>=first && cachedResult[k].pos<first+count) {
+          result.push(cachedResult[k]);
+        }
+      }
+    }
+    return result.map(function(ms){
+      return new PNAPI.PN(this.box,ms);
+    },this);
+  },
+  remove: function(msgid) {
+
+  },
+  archive: function(msgid) {
+    if (this.box=='savebox') {
+      return false;
+    }
+  },
+  getCurrentMessages: function (page, table) {
+    var start = page*50;
+
+    if (isUndef(table)) {   // if somebody navigates past the end and table is null, that's info too!
+      var lister = new AJAXObject();
+      var host = document.createElement('div');
+      host.innerHTML = lister.SyncRequest('/privmsg.php?folder='+this.box+'&start='+start, null);
+
+      var table = queryXPathNode(host, '/table[@class="overall"]/tbody/tr[2]/td/div/form/table[@class="forumline"]');
+    }
+    if (!table) {
+      return null;
+    }
+
+    var rows = queryXPathNodeSet(table, './/tr[./td[starts-with(@id,"folderFor")]]');
+    if (!rows || !rows.length) {
+      return [];
+    }
+
+    var messages = [];
+
+    var position = start;
+    rows.forEach(function(row) {
+      messages.push({
+        postID: queryXPathNode(row, './td[2]/span/a[2]').href.match(/p=(\d+)/)[1],
+        pos: position++,
+        read: !queryXPathNode(row, './td[1]//img[contains(@src,"folder_new.gif")]'),
+        title: this.unescapeTitle(queryXPathNode(row, './td[2]/span/a[2]').textContent),
+        postSpecial: (function(){var a=queryXPathNode(row, './td[2]/span/b'); return a?a.textContent:'';})(),
+        received: queryXPathNode(row, './td[2]/span[2]').textContent.trim().substr(0,3)=='von',
+        partner: queryXPathNode(row, './td[2]/span[2]/span').textContent.trim(),
+        partnerID: (function(){var a=queryXPathNode(row, './td[2]/span[2]/span/a'); return a?a.href.match(/u=(\d+)/)[1]:null;})(),
+        date: this.postDatetoJSDate(queryXPathNode(row,'./td[3]/span').innerHTML)
+      });
+    }, this);
+
+    return messages;
+  },
+  updatePage: function(page,table) {
+    var cachedResult = EM.Cache.get('pmlisting',this.box+','+page).data;
+    var msgs = this.getCurrentMessages(page,table);
+    if (cachedResult && cachedResult.length) {
+      if ((cachedResult[0].postID != msgs[0].postID) ||
+          (cachedResult.length!= msgs.length) ||
+          (cachedResult[msgs.length-1].postID != msgs[msgs.length-1].postID)) {
+        //something changed outside this page
+        EM.Cache.touch('pmlisting',this.box+','+(page-1),-1);
+        EM.Cache.touch('pmlisting',this.box+','+(page+1),-1);
+      }
+    }else if (!cachedResult) {
+      //page wasnt here before...
+      EM.Cache.touch('pmlisting',this.box+','+(page-1),-1);
+    }
+
+    EM.Cache.put('pmlisting',this.box+','+page,msgs,900);
+    return msgs;
+  },
+  postDatetoJSDate: function(pd) {
+    //"Mo 07.12.09<br>23:17"
+    // good thing DF always returns that and ignores user settings...
+    var d = pd.match(/\S+\s(\d+)\.(\d+)\.(\d+)<\S+>(\d+):(\d+)/);
+    return new Date(2000+parseInt(d[3]), d[2]-1, d[1], d[4], d[5], 0).getTime()/1000;
+  },
+  unescapeTitle: function(t) {
+    while(/&amp;|&gt;|&lt;|&quot;/.test(t) && !/[<>"]/.test(t)) {
+        t = t.replace(/&quot;/g, '"');
+        t = t.replace(/&lt;/g, '<');
+        t = t.replace(/&gt;/g, '>');
+        t = t.replace(/&amp;/g, '&');
+    }
+    return t;
+  }
+
+}
+
+PNAPI.PN = function (box,ms) {
+  this.box = box;
+  this.id = ms.postID*1;
+  this.title = ms.title;
+  this.unread = !ms.read;
+  this.date = ms.date;
+  if (ms.received) {
+    this.senderID = ms.partnerID*1;
+    this.sender = ms.partner;
+  } else {
+    this.receiverID = ms.partnerID*1;
+    this.receiver = ms.partner;
+  }
+  if (ms.postSpecial) {
+    this.flag = ms.postSpecial;
+  }
+}
+
+PNAPI.PN.prototype = {
+  getContent: function() {
+    var cachedResult = EM.Cache.get('pmdata',this.id+',text');
+    if (cachedResult.current) {
+      return cachedResult.data;
+    }
+    var get = new AJAXObject();
+    var res = get.SyncRequest('/ajax_get_message_text.php?privmsg_id='+this.id+'&folder='+this.box, null);
+    var re = /\[CDATA\[([\s\S]*?)\]\]/gi;
+    var data = re.execAll(res).map(function(a){ return a[1]; }).join('');
+    var host = document.createElement('div');
+    host.innerHTML=data;
+    data=host.firstChild.innerHTML.split('<hr>')[0].trim();
+    EM.Cache.put('pmdata',this.id+',text',data,1800);
+    return data;
+  },
+  getQuoted: function() {
+    var cachedResult = EM.Cache.get('pmdata',this.id+',quote');
+    if (cachedResult.current) {
+      return cachedResult.data;
+    }
+    var get = new AJAXObject();
+    var host = document.createElement('div');
+    host.innerHTML = get.SyncRequest('/privmsg.php?mode=quote&p='+this.id, null);
+    var data=queryXPathNode(host,'//textarea[@id="message"]').innerHTML;
+    EM.Cache.put('pmdata',this.id+',quote',data,1800);
+    return data;
+  }
+}
 
 
 function ButtonBar() {
@@ -1926,7 +2154,6 @@ ShoutboxControls.prototype = {
                       } break;
                       case 'S@': {
                         if(re = resolveForumSelect(".*?", txt)) {
-                          console.log(re);
                           return before+"[url=http://www."+re.forum+".de/search.php?search_keywords="+
                                   encodeURIComponent(re.found)+"]"+re.found+"[/url]";
                         }
@@ -2213,7 +2440,6 @@ function SmileyWindow(target) {
   this.Target = target;
   var pt = new Point(0,0);
   pt.CenterInWindow(440,290);
-  console.log(pt);
   this.win = new OverlayWindow(pt.x,pt.y,440,290,'','em_SmileyWin');
   if(EM.Settings.GetValue('pagehack','smileyOverlay')==1) {
     this.win.InitWindow();
@@ -2562,6 +2788,10 @@ function Pagehacks() {
   if(EM.Settings.GetValue('ui','addsid')) {
     this.AddLinkSIDs();
   }
+  if(EM.Settings.GetValue('pageghack','pnautocheck')) {
+    var min = EM.Settings.GetValue('pageghack','pnautocheck');
+    window.setInterval('EM.Pagehacks.checkPMAuto()', min * 60000);
+  }
 }
 
 Pagehacks.prototype = {
@@ -2580,6 +2810,18 @@ Pagehacks.prototype = {
             a[i].style.cssText+=' cursor:pointer';
             addEvent(a[i],'click',function() {div.Window.Close(); return false;});
           } else a[i].removeAttribute('target');
+        }
+      });
+  },
+
+  checkPMAuto: function() {
+    var s = Ajax.AsyncRequest('privmsg.php?mode=newpm',undefined,null,
+      function(html) {
+        if (/Es sind keine neuen privaten Nachrichten vorhanden/.test(html)) {
+          // no PNs, but nobody would want to know that
+        } else {
+          //do something (later)
+          //window.open('/privmsg.php?mode=newpm', '_phpbbprivmsg', 'HEIGHT=225,resizable=yes,WIDTH=400');
         }
       });
   },
@@ -2694,6 +2936,8 @@ Pagehacks.prototype = {
       var row = entries[i];
       var cols = queryXPathNodeSet(row, './td');
 
+      if (cols.length<2 && cols.length && cols[0].className=='catHead') // looks like single post mode
+        break;                                                          // TODO: switch processing mode
       var tuser_l = queryXPathNode(row,"./td[2]/span[2]/span/a");
       if (isForum) {
         var puser_l = queryXPathNode(row,"./td[5]/a[2]");
@@ -2975,7 +3219,6 @@ Pagehacks.prototype = {
   FixPostingDialog: function () {
     //Get the Content Main Table
     var sp = EM.Buttons.mainTable;
-    console.log(sp);
 
     if(isUndef(sp) || null == sp) {
       return;
@@ -2983,10 +3226,8 @@ Pagehacks.prototype = {
 
     //Get the Information Table
     sp = queryXPathNode(sp, "tbody/tr[2]/td/div/table");
-    console.log(sp);
 
     var t = queryXPathNode(sp, "tbody/tr[1]/th/b");
-    console.log(t);
     if(isUndef(t) || null == t) {
       return;
     }
@@ -2997,7 +3238,6 @@ Pagehacks.prototype = {
 
     //Get the Information Span with all those links ...
     sp = queryXPathNode(sp, "tbody/tr[2]/td/table/tbody/tr[2]/td/span");
-    console.log(sp);
 
     sp.innerHTML+='<br><br><a href="/search.php?search_id=unread">Hier klicken</a>, um die ungelesenen Themen anzuzeigen';
   },
@@ -3564,6 +3804,7 @@ function initEdgeApe() {
     EM.Shouts = new ShoutboxControls();
 
     EM.Cache = new CacheMonkey();
+    EM.PN = new PNAPI();
   }
 }
 

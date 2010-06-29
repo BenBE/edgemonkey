@@ -4169,7 +4169,7 @@ UpdateMonkey.prototype = {
     notifyUpdate: function(user,repo,branch,tag,commit,mode) {
     	var e = document.createElement('div');
     	e.innerHTML = '<div class="dfnav">Neues Update</div><br/>'+
-    		'<div class="gensmall">Ein neuer Update von EdgeMonkey wurde gefunden.</div>' +
+    		'<div class="gensmall">Ein neues Updats f&uuml;r EdgeMonkey wurde gefunden.</div>' +
     		'<table>'+
     		'<tr><td><span class="gensmall">Benutzer:</span></td><td><span class="gensmall">' + user + '</span></td></tr>' +
     		'<tr><td><span class="gensmall">Repository:</span></td><td><span class="gensmall">' + repo + '</span></td></tr>' +

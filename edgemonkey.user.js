@@ -423,6 +423,83 @@ Math.sign = function(a) {
     }
 })();
 
+RegExp.prototype.execAll=function(data) {
+  var result = [];
+  var r;
+  while((r = this.exec(data))!= null) {
+    result.push(r);
+  }
+  if (result.length)
+    return result;
+  else
+    return null;
+}
+
+//http://jacwright.com/projects/javascript/date_format
+// Simulates PHP's date function
+Date.prototype.format = function(format) {
+  var returnStr = '';
+  var replace = {
+    shortMonths: ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'],
+    longMonths: ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'],
+    shortDays: ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'],
+    longDays: ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'],
+
+    // Day
+    d: function() { return (this.getDate() < 10 ? '0' : '') + this.getDate(); },
+    D: function() { return replace.shortDays[this.getDay()]; },
+    j: function() { return this.getDate(); },
+    l: function() { return replace.longDays[this.getDay()]; },
+    N: function() { return this.getDay() + 1; },
+    S: function() { return (this.getDate() % 10 == 1 && this.getDate() != 11 ? 'st' : (this.getDate() % 10 == 2 && this.getDate() != 12 ? 'nd' : (this.getDate() % 10 == 3 && this.getDate() != 13 ? 'rd' : 'th'))); },
+    w: function() { return this.getDay(); },
+    z: function() { return "Not Yet Supported"; },
+    // Week
+    W: function() { return "Not Yet Supported"; },
+    // Month
+    F: function() { return replace.longMonths[this.getMonth()]; },
+    m: function() { return (this.getMonth() < 9 ? '0' : '') + (this.getMonth() + 1); },
+    M: function() { return replace.shortMonths[this.getMonth()]; },
+    n: function() { return this.getMonth() + 1; },
+    t: function() { return "Not Yet Supported"; },
+    // Year
+    L: function() { return (((this.getFullYear()%4==0)&&(this.getFullYear()%100 != 0)) || (this.getFullYear()%400==0)) ? '1' : '0'; },
+    o: function() { return "Not Supported"; },
+    Y: function() { return this.getFullYear(); },
+    y: function() { return ('' + this.getFullYear()).substr(2); },
+    // Time
+    a: function() { return this.getHours() < 12 ? 'am' : 'pm'; },
+    A: function() { return this.getHours() < 12 ? 'AM' : 'PM'; },
+    B: function() { return "Not Yet Supported"; },
+    g: function() { return this.getHours() % 12 || 12; },
+    G: function() { return this.getHours(); },
+    h: function() { return ((this.getHours() % 12 || 12) < 10 ? '0' : '') + (this.getHours() % 12 || 12); },
+    H: function() { return (this.getHours() < 10 ? '0' : '') + this.getHours(); },
+    i: function() { return (this.getMinutes() < 10 ? '0' : '') + this.getMinutes(); },
+    s: function() { return (this.getSeconds() < 10 ? '0' : '') + this.getSeconds(); },
+    // Timezone
+    e: function() { return "Not Yet Supported"; },
+    I: function() { return "Not Supported"; },
+    O: function() { return (-this.getTimezoneOffset() < 0 ? '-' : '+') + (Math.abs(this.getTimezoneOffset() / 60) < 10 ? '0' : '') + (Math.abs(this.getTimezoneOffset() / 60)) + '00'; },
+    P: function() { return (-this.getTimezoneOffset() < 0 ? '-' : '+') + (Math.abs(this.getTimezoneOffset() / 60) < 10 ? '0' : '') + (Math.abs(this.getTimezoneOffset() / 60)) + ':' + (Math.abs(this.getTimezoneOffset() % 60) < 10 ? '0' : '') + (Math.abs(this.getTimezoneOffset() % 60)); },
+    T: function() { var m = this.getMonth(); this.setMonth(0); var result = this.toTimeString().replace(/^.+ \(?([^\)]+)\)?$/, '$1'); this.setMonth(m); return result;},
+    Z: function() { return -this.getTimezoneOffset() * 60; },
+    // Full Date/Time
+    c: function() { return this.format("Y-m-d") + "T" + this.format("H:i:sP"); },
+    r: function() { return this.toString(); },
+    U: function() { return this.getTime() / 1000; }
+  };
+  for (var i = 0; i < format.length; i++) {
+    var curChar = format.charAt(i);
+    if (replace[curChar]) {
+      returnStr += replace[curChar].call(this);
+    } else {
+      returnStr += curChar;
+    }
+  }
+  return returnStr;
+};
+
 //Some ISO 8601 magic from http://delete.me.uk/2005/03/iso8601.html
 Date.prototype.setISO8601 = function (string) {
     var regexp = "([0-9]{4})(-([0-9]{2})(-([0-9]{2})" +
@@ -1218,9 +1295,13 @@ function SettingsStore() {
     this.AddSetting( 'Links auf Unterforen mit SessionID versehen', 'ui.addsid', 'bool', true),
     this.AddSetting( 'Automatisch auf neue PNs pr&uuml;fen', 'pageghack.pnautocheck',[
           ['Nein', 0],
+          ['1 Minute', 1],
+          ['2 Minuten', 2],
+          ['3 Minuten', 3],
           ['5 Minuten', 5],
           ['10 Minuten', 10],
-          ['15 Minuten', 15]
+          ['15 Minuten', 15],
+          ['30 Minuten', 30]
         ], 0)
   ]);
   this.AddCategory('Entwickler', [
@@ -1378,11 +1459,13 @@ SettingsStore.prototype = {
     head.className='em-tabbar';
     this.Window.Body.appendChild(head);
     head=head.insertRow(-1);
+    var firstTab = null;
     this.Categories.forEach(function(c){
       if(head.children.length>=4) head=head.parentNode.insertRow(-1);
       var h=head.insertCell(-1);
       h.innerHTML = c.title;
       h.className='em-tabbutton';
+      if (!firstTab) firstTab=h;
       var id = 'page'+Math.ceil(Math.random()*1E6);
       var doc = this.Window.Document;
       addEvent(h, 'click', function(el) {
@@ -1438,18 +1521,18 @@ SettingsStore.prototype = {
         }, this);
       }
     }, this);
-      var ct=4,cs=Math.floor(4/head.children.length);
-      var l=head.children;
-      for (var i=0; i<l.length-1;i++) {
-        l[i].colSpan=cs;
-        ct-=cs;
-      }
-      l[l.length-1].colSpan=ct;
+    var ct=4,cs=Math.floor(4/head.children.length);
+    var l=head.children;
+    for (var i=0; i<l.length-1;i++) {
+      l[i].colSpan=cs;
+      ct-=cs;
+    }
+    l[l.length-1].colSpan=ct;
 
     this.Window.Window.setTimeout(function() {
       var ev = document.createEvent("HTMLEvents");
       ev.initEvent("click", true, false);
-      head.firstChild.dispatchEvent(ev);
+      firstTab.firstChild.dispatchEvent(ev);
     }, 1);
 
     this.Window.ButtonBar = this.Window.Document.createElement('table');
@@ -1558,6 +1641,225 @@ SettingsStore.prototype = {
   }
 }
 
+function PNAPI() {
+  ['inbox','outbox','sentbox','savebox'].forEach(function(b) {
+    this[b]=new PNAPI.PNBox(b);
+  },this);
+}
+
+PNAPI.VAPN_Team = 0;
+PNAPI.VAPN_User = 1;
+PNAPI.VAPN_Post = 2;
+PNAPI.VAPN_Topic = 3;
+PNAPI.VAPN_Synonym = 4;
+PNAPI.VAPN_BlogEntry = 5;
+PNAPI.VAPN_BlogComment = 6;
+
+PNAPI.prototype = {
+  sendPN: function(recipient, title, message) {
+    if("" == EM.User.loggedOnSessionId) {
+      return false;
+    }
+    var pndata = {
+      username: recipient,
+      subject: title,
+      message: message,
+      folder:'inbox',
+      mode:'post',
+      post_submit:'Absenden'
+    };
+    var ajax = new AJAXObject();
+    var res = ajax.SyncRequest('/privmsg.php', pndata);
+    return /Deine\s+Nachricht\s+wurde\s+gesendet\./.test(res);
+  },
+  sendVAPN: function(reftype,id,title,message) {
+    if("" == EM.User.loggedOnSessionId) {
+      return false;
+    }
+    var vapndata = {
+      mode:'new',
+      ref_type:reftype,
+      subject: title,
+      message: message,
+      post_submit:'Absenden'
+    };
+    if(reftype != PNAPI.VAPN_Team) {
+        vapndata.id = id;
+    }
+    var ajax = new AJAXObject();
+    var res = ajax.SyncRequest('/vc.php?mode=new&ref_type='+reftype+(reftype == PNAPI.VAPN_Team?'':'&id='+id), vapndata);
+    return /Nachricht\s+erfolgreich\s+gesendet!/.test(res);
+  },
+  getUnread: function(box,count) {
+    var e = EM.PN[box];
+    if (e) {
+      return e.list(0,count).filter(function(a) {
+        return a.unread;
+      });
+    }
+    return null;
+  }
+}
+
+PNAPI.PNBox = function (boxname) {
+  this.box = boxname;
+}
+
+PNAPI.PNBox.prototype = {
+  list: function(first,count) {
+    var p1 = Math.floor(first / 50);
+    var pl = Math.floor((first+count-1) / 50);
+    var result = [];
+
+    for (var i=p1; i<=pl;i++) {
+      var cachedResult = EM.Cache.get('pmlisting',this.box+','+i);
+      if(!cachedResult.current) {
+        cachedResult = this.updatePage(i);
+      } else {
+        cachedResult = cachedResult.data;
+      }
+      for (var k=0; k<cachedResult.length;k++) {
+        if (cachedResult[k].pos>=first && cachedResult[k].pos<first+count) {
+          result.push(cachedResult[k]);
+        }
+      }
+    }
+    return result.map(function(ms){
+      return new PNAPI.PN(this.box,ms);
+    },this);
+  },
+  remove: function(msgid) {
+
+  },
+  archive: function(msgid) {
+    if (this.box=='savebox') {
+      return false;
+    }
+  },
+  getCurrentMessages: function (page, table) {
+    var start = page*50;
+
+    if (isUndef(table)) {   // if somebody navigates past the end and table is null, that's info too!
+      var lister = new AJAXObject();
+      var host = document.createElement('div');
+      host.innerHTML = lister.SyncRequest('/privmsg.php?folder='+this.box+'&start='+start, null);
+
+      var table = queryXPathNode(host, '/table[@class="overall"]/tbody/tr[2]/td/div/form/table[@class="forumline"]');
+    }
+    if (!table) {
+      return null;
+    }
+
+    var rows = queryXPathNodeSet(table, './/tr[./td[starts-with(@id,"folderFor")]]');
+    if (!rows || !rows.length) {
+      return [];
+    }
+
+    var messages = [];
+
+    var position = start;
+    rows.forEach(function(row) {
+      messages.push({
+        postID: queryXPathNode(row, './td[2]/span/a[2]').href.match(/p=(\d+)/)[1],
+        pos: position++,
+        read: !queryXPathNode(row, './td[1]//img[contains(@title,"Ungelesene Nachricht")]'),
+        title: this.unescapeTitle(queryXPathNode(row, './td[2]/span/a[2]').textContent),
+        postSpecial: (function(){var a=queryXPathNode(row, './td[2]/span/b'); return a?a.textContent:'';})(),
+        received: queryXPathNode(row, './td[2]/span[2]').textContent.trim().substr(0,3)=='von',
+        partner: queryXPathNode(row, './td[2]/span[2]/span').textContent.trim(),
+        partnerID: (function(){var a=queryXPathNode(row, './td[2]/span[2]/span/a'); return a?a.href.match(/u=(\d+)/)[1]:null;})(),
+        date: this.postDatetoJSDate(queryXPathNode(row,'./td[3]/span').innerHTML)
+      });
+    }, this);
+
+    return messages;
+  },
+  updatePage: function(page,table) {
+    var cachedResult = EM.Cache.get('pmlisting',this.box+','+page).data;
+    var msgs = this.getCurrentMessages(page,table);
+    if (cachedResult && cachedResult.length) {
+      if ((cachedResult[0].postID != msgs[0].postID) ||
+          (cachedResult.length!= msgs.length) ||
+          (cachedResult[msgs.length-1].postID != msgs[msgs.length-1].postID)) {
+        //something changed outside this page
+        EM.Cache.touch('pmlisting',this.box+','+(page-1),-1);
+        EM.Cache.touch('pmlisting',this.box+','+(page+1),-1);
+      }
+    }else if (!cachedResult) {
+      //page wasnt here before...
+      EM.Cache.touch('pmlisting',this.box+','+(page-1),-1);
+    }
+
+    var time = 60*EM.Settings.GetValue('pageghack','pnautocheck');
+    if (time<60) time=60;
+    EM.Cache.put('pmlisting',this.box+','+page,msgs,time);
+    return msgs;
+  },
+  postDatetoJSDate: function(pd) {
+    //"Mo 07.12.09<br>23:17"
+    // good thing DF always returns that and ignores user settings...
+    var d = pd.match(/\S+\s(\d+)\.(\d+)\.(\d+)<\S+>(\d+):(\d+)/);
+    return new Date(2000+parseInt(d[3]), d[2]-1, d[1], d[4], d[5], 0).getTime()/1000;
+  },
+  unescapeTitle: function(t) {
+    while(/&amp;|&gt;|&lt;|&quot;/.test(t) && !/[<>"]/.test(t)) {
+        t = t.replace(/&quot;/g, '"');
+        t = t.replace(/&lt;/g, '<');
+        t = t.replace(/&gt;/g, '>');
+        t = t.replace(/&amp;/g, '&');
+    }
+    return t;
+  }
+
+}
+
+PNAPI.PN = function (box,ms) {
+  this.box = box;
+  this.id = ms.postID*1;
+  this.title = ms.title;
+  this.unread = !ms.read;
+  this.date = ms.date;
+  if (ms.received) {
+    this.senderID = ms.partnerID*1;
+    this.sender = ms.partner;
+  } else {
+    this.receiverID = ms.partnerID*1;
+    this.receiver = ms.partner;
+  }
+  if (ms.postSpecial) {
+    this.flag = ms.postSpecial;
+  }
+}
+
+PNAPI.PN.prototype = {
+  getContent: function() {
+    var cachedResult = EM.Cache.get('pmdata',this.id+',text');
+    if (cachedResult.current) {
+      return cachedResult.data;
+    }
+    var get = new AJAXObject();
+    var res = get.SyncRequest('/ajax_get_message_text.php?privmsg_id='+this.id+'&folder='+this.box, null);
+    var re = /\[CDATA\[([\s\S]*?)\]\]/gi;
+    var data = re.execAll(res).map(function(a){ return a[1]; }).join('');
+    var host = document.createElement('div');
+    host.innerHTML=data;
+    data=host.firstChild.innerHTML.split('<hr>')[0].trim();
+    EM.Cache.put('pmdata',this.id+',text',data,1800);
+    return data;
+  },
+  getQuoted: function() {
+    var cachedResult = EM.Cache.get('pmdata',this.id+',quote');
+    if (cachedResult.current) {
+      return cachedResult.data;
+    }
+    var get = new AJAXObject();
+    var host = document.createElement('div');
+    host.innerHTML = get.SyncRequest('/privmsg.php?mode=quote&p='+this.id, null);
+    var data=queryXPathNode(host,'//textarea[@id="message"]').innerHTML;
+    EM.Cache.put('pmdata',this.id+',quote',data,1800);
+    return data;
+  }
+}
 
 
 function ButtonBar() {
@@ -1833,7 +2135,7 @@ function Notifier() {
   this.Element = document.createElement('div');
   this.Element.style.cssText = 'position:fixed;left:0;top:0;height:0px;right:0;opacity:0.9;overflow:hidden;'+
                                'background: url("./graphics/slices/df_slice-14.gif") repeat scroll 0 -6px transparent;'+
-                               '-moz-user-select:none;z-index:999;cursor:default';
+                               '-moz-user-select:none;z-index:999999;cursor:default';
   this.fadeTimer = null;
   document.body.appendChild(this.Element);
 
@@ -1849,6 +2151,8 @@ function Notifier() {
   this.List = document.createElement('ul');
   this.Element.appendChild(this.List);
   this.List.style.cssText='list-style-type: none;margin:0;padding:0';
+
+  this._popups={};
 }
 
 Notifier.REPLACE = 1<<0;
@@ -1902,13 +2206,13 @@ Notifier.prototype = {
     }
     uniquename='em_notification_'+uniquename;
 
-    detail.style.cssText='display:none';
+    detail.style.display='none';
     this.fadeIn();
 
     var f = document.getElementById(uniquename);
     if (f) {
       if (options & Notifier.REPLACE) {
-        f.parentNode.removeChild(f);
+        this.realRemove(f);
       } else {
         return;
       }
@@ -1962,6 +2266,7 @@ Notifier.prototype = {
     var w = new OverlayWindow(coords.x,coords.y,300,180,'','em_notificationpopup');
     w.InitDropdown();
     a.style.display='';
+    this._popups[e.id]=w;
 
     w.ContentArea.appendChild(a);
     w.OnClose = function(wi) {
@@ -1974,12 +2279,17 @@ Notifier.prototype = {
   remove: function(e) {
     if (typeof e=='string')
       e=document.getElementById(e);
-    this.List.removeChild(e);
+    this.realRemove(e);
     if (!this.List.children.length) {
       this.fadeOut();
     } else {
       this.expand();
     }
+  },
+  realRemove: function(el) {
+    this._popups[el.id].Close();
+    delete this._popups[el.id];
+    this.List.removeChild(el);
   }
 }
 
@@ -2846,23 +3156,36 @@ Pagehacks.prototype = {
   },
 
   checkPMAuto: function() {
-    var s = Ajax.AsyncRequest('privmsg.php?mode=newpm',undefined,document.createElement('div'),
-      function(div) {
-        if (/Es sind keine neuen privaten Nachrichten vorhanden/.test(div.innerHTML)) {
-          // no PNs, but nobody would want to know that
-        } else {
-          var a=div.getElementsByTagName('a');
-          for(i=0;i<a.length;i++) {
-            if (a[i].href.match(/window\.close/)) {
-              a[i].parentNode.removeChild(a[i]);
-            } else a[i].removeAttribute('target');
+    var l = EM.PN.getUnread('inbox',10);
+    if (l.length) {
+      var s=l.length==1?'Eine neue PN':l.length+' neue PNs';
+      var div = document.createElement('div');
+      var tbl = document.createElement('table');
+      div.appendChild(tbl);
+      div.style.cssText='height:180px;overflow:auto';
+      tbl.className='forumline';
+      tbl.style.cssText='width:100%';
+      tbl.setAttribute('cellspacing',1);
+      tbl.setAttribute('cellpadding',4);
+      var r=1;
+      l.forEach(function(pn) {
+        with (tbl.insertRow(-1)) {
+          with(insertCell(-1)) {
+            className='row'+r;
+            var d = new Date(1000*pn.date);
+            innerHTML='<span class="topictitle"><a href="privmsg.php?folder=inbox&amp;mode=read&amp;p='+pn.id+
+                       '" class="topictitle" target="_blank">'+pn.title+'</a></span><span class="gensmall"><br>von '+
+                       '<span class="name" style="font-size: 10px;">'+
+                       (pn.senderID?'<a class="gensmall" href="profile.php?mode=viewprofile&amp;u='+pn.senderID+'">'+
+                       pn.sender+'</a>':pn.sender)+
+                       ' am '+d.format("d.m.y")+' um '+d.format("H:i")+
+                       '</span></span>';
           }
-          div=queryXPathNode(div, './/table[@class=\'forumline\']');
-          div.className='';
-          EM.Notifier.notify('/graphics/Portal-PM.gif','PN eingetroffen',div,'pnarrived',true);
-          div.style.cssText='height:100%';
         }
-      });
+        r=r==1?2:1;
+      },this);
+      EM.Notifier.notify('/graphics/Portal-PM.gif',s,div,'pnarrived',Notifier.REPLACE|Notifier.POPUP);
+    }
   },
 
   fastSearch: function() {
@@ -4291,6 +4614,7 @@ function initEdgeApe() {
     EM.Shouts = new ShoutboxControls();
 
     EM.Cache = new CacheMonkey();
+    EM.PN = new PNAPI();
   }
 
   if(isEmpty(window.opener) && (window.parent==window) )

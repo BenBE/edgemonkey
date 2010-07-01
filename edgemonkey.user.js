@@ -2383,6 +2383,7 @@ ShoutboxReplacer.prototype = {
 							}
 						  } break;
 						  case 'K@': {
+							if(txt.indexOf('http://')!=0) txt='http://'+txt;
 							return before+"[url="+txt+"]*klick*[/url]";
 						  } break;
 						}
@@ -3295,44 +3296,59 @@ Pagehacks.prototype = {
   },
 
   TLColourize: function (tltable, isForum) {
+	if(!tltable) return;
     var entries = queryXPathNodeSet(tltable,"./tbody/tr");
     var col_ofs = (isForum)?1:0;
+    var singlePostMode=false;;
 
     for(var i = 1; i < entries.length - col_ofs; i++) { //Skip entry 0 (table header)
       var row = entries[i];
       var cols = queryXPathNodeSet(row, './td');
-
-      if (cols.length<2 && cols.length && cols[0].className=='catHead') // looks like single post mode
-        break;                                                          // TODO: switch processing mode
-      var tuser_l = queryXPathNode(row,"./td[2]/span[2]/span/a");
-      if (isForum) {
-        var puser_l = queryXPathNode(row,"./td[5]/a[2]");
-        var pcount = queryXPathNode(row,"./td[4]/div");
-      } else {
-        var puser_l = queryXPathNode(row,"./td[4]/span/a[2]");
-        var pcount = queryXPathNode(row,"./td[3]/div/span");
+      if(!cols.length) continue;
+      
+      if (cols.length<2){
+        if(i==1 && cols[0].className=='catHead'){ // looks like single post mode
+          singlePostMode=true;
+		}
+        continue;
+     }else if(singlePostMode){
+        var tuser_l = queryXPathNode(row,"./td[1]/span[1]/b[1]/a[1]");
+	 }else{
+        var tuser_l = queryXPathNode(row,"./td[2]/span[2]/span[1]/a[1]");
+        if (isForum) {
+          var puser_l = queryXPathNode(row,"./td[5]/a[2]");
+          var pcount = queryXPathNode(row,"./td[4]/div");
+        } else {
+          var puser_l = queryXPathNode(row,"./td[4]/span/a[2]");
+          var pcount = queryXPathNode(row,"./td[3]/div/span");
+        }
       }
-      var t_cssClassAdd = EM.User.helper_getHLStyleByUserLink(tuser_l);
-      var p_cssClassAdd = EM.User.helper_getHLStyleByUserLink(puser_l);
-
-      var c_cssClassAdd = '';
-      if (pcount.textContent == 0) {
-          c_cssClassAdd += ' emctpl' + 1; //Red
-      } else if (pcount.textContent < 3) {
-          c_cssClassAdd += ' emctpl' + 2; //Orange
-      } else if (pcount.textContent < 10) {
-          c_cssClassAdd += ' emctpl' + 3; //Yellow
-      } else if (pcount.textContent < 40) {
-          c_cssClassAdd += ' emctpl' + 4; //Green
-      } else if (pcount.textContent < 100) {
-          c_cssClassAdd += ' emctpl' + 5; //Blue
-      } else if (pcount.textContent < 500) {
-          c_cssClassAdd += ' emctpl' + 6; //Magenta
-      } else {
-          c_cssClassAdd += ' emctpl' + 7; //Lila
+      if(tuser_l){
+        var t_cssClassAdd = EM.User.helper_getHLStyleByUserLink(tuser_l);
+      }else{
+        var t_cssClassAdd = "";
+      }
+      if(!singlePostMode){
+        var p_cssClassAdd = EM.User.helper_getHLStyleByUserLink(puser_l);
+  
+        var c_cssClassAdd = '';
+        if (pcount.textContent == 0) {
+            c_cssClassAdd += ' emctpl' + 1; //Red
+        } else if (pcount.textContent < 3) {
+            c_cssClassAdd += ' emctpl' + 2; //Orange
+        } else if (pcount.textContent < 10) {
+            c_cssClassAdd += ' emctpl' + 3; //Yellow
+        } else if (pcount.textContent < 40) {
+            c_cssClassAdd += ' emctpl' + 4; //Green
+        } else if (pcount.textContent < 100) {
+            c_cssClassAdd += ' emctpl' + 5; //Blue
+        } else if (pcount.textContent < 500) {
+            c_cssClassAdd += ' emctpl' + 6; //Magenta
+        } else {
+            c_cssClassAdd += ' emctpl' + 7; //Lila
+        }
       }
 
-      //Remove the DF Highlighting to ensure proper colors :P
       var std_own = document.createElement('span');
       std_own.innerHTML = /Highlight/.test(cols[0].className) ? 'B' : '-';
 
@@ -3342,57 +3358,85 @@ Pagehacks.prototype = {
         //Now lets check against the blacklist :P
         cols[0].className += t_cssClassAdd;
         cols[1].className += t_cssClassAdd;
-        if (col_ofs) cols[2].className += rowfix + t_cssClassAdd;
-        cols[2+col_ofs].className += rowfix + c_cssClassAdd;
-        cols[3+col_ofs].className += rowfix + p_cssClassAdd;
 
+        //Remove the DF Highlighting to ensure proper colors :P
         cols[0].className = cols[0].className.replace(/Highlight/, '');
         cols[1].className = cols[1].className.replace(/Highlight/, '');
-        if (col_ofs) cols[2].className = cols[2].className.replace(/Highlight/, '');
-        cols[2+col_ofs].className = cols[2+col_ofs].className.replace(/Highlight/, '');
-        cols[3+col_ofs].className = cols[3+col_ofs].className.replace(/Highlight/, '');
+
+        if(singlePostMode){
+          var cols2=queryXPathNodeSet(entries[i+1], './td');
+          cols2[0].className += t_cssClassAdd;
+          cols2[0].className = cols2[0].className.replace(/Highlight/, '');
+        }else{
+          if (col_ofs) cols[2].className += rowfix + t_cssClassAdd;
+          cols[2+col_ofs].className += rowfix + c_cssClassAdd;
+          cols[3+col_ofs].className += rowfix + p_cssClassAdd;
+          if (col_ofs) cols[2].className = cols[2].className.replace(/Highlight/, '');
+          cols[2+col_ofs].className = cols[2+col_ofs].className.replace(/Highlight/, '');
+          cols[3+col_ofs].className = cols[3+col_ofs].className.replace(/Highlight/, '');
+        }
       }
 
-      //We need to do this here, since we will change HTML later ...
-      var img = queryXPathNode(cols[0], './/img');
-      //Add "Close topic" link ...
       var div = document.createElement('div');
-      div.className+='intbl';
-
-      var cnt = document.createElement('span');
-      cnt.className = 'incell left';
-      cnt.innerHTML = cols[0].innerHTML;
-      cols[0].innerHTML = '';
-
-      //Fix for a bug in TUFKAPL source
-      cnt.id = cols[0].id;
-      cols[0].id = '';
+      div.className='intbl';
 
       var std = document.createElement('span');
       std.className = 'gensmall incell right';
+	  
+	  var strUser=queryXPathNode(tuser_l, './span').textContent;
 
-      var isSelf = tuser_l && (queryXPathNode(tuser_l, './span').textContent == EM.User.loggedOnUser);
+      var isSelf = tuser_l && (strUser == EM.User.loggedOnUser);
 
-      if(img && isSelf && !img.src.match(/answered/) && !img.src.match(/lock/)) {
-        var topicid = img.id.match(/^folderFor(\d+)$/);
-        var std_a = document.createElement('a');
-        std_a.innerHTML = '&#x2714;';
-        std_a.id = 'answerLink'+topicid[1];
-        std_a.setAttribute("onclick",'EM.Pagehacks.SetAnswered("'+topicid[1]+'"); return false;');
-        std_a.style.cssText+=' cursor:pointer;';
-        std.appendChild(std_a);
-      }
+      if(singlePostMode){
+		i++;
+		var it_span_user = document.createElement('span');
+		it_span_user.className = 'incell left';
+		it_span_user.innerHTML=cols[0].innerHTML;
+		cols[0].innerHTML='';
+		div.appendChild(it_span_user);
+		if(!isSelf){
+			if(EM.Settings.GetValue('topic','button_stalk')) {
+			  var l_stalk = EM.User.userlinkButtonFromLink(document, strUser, EM.User.ev_stalk_t, 'topic', 'stalk');
+			  std.appendChild(l_stalk);
+			}
+			if(EM.Settings.GetValue('topic','button_killfile')) {
+			  var l_kill = EM.User.userlinkButtonFromLink(document, strUser, EM.User.ev_kill, 'topic', 'killfile');
+			  std.appendChild(l_kill);
+			}
+		}
+	  }else{
+		  var img = queryXPathNode(cols[0], './/img');
+		  
+		  var cnt = document.createElement('span');
+		  cnt.className = 'incell left';
+		  cnt.innerHTML = cols[0].innerHTML;
+		  cols[0].innerHTML = '';
 
-      var std_br = document.createElement('br');
-      std.appendChild(std_br);
-      std.appendChild(std_own);
+		  //Fix for a bug in TUFKAPL source
+		  cnt.id = cols[0].id;
+		  cols[0].id = '';
 
-      std.style.cssText+=' vertical-align:top;';
-      std.style.cssText+=' min-width:1.1em;';
-      std.style.cssText+=' min-height:23px;';
+		  div.appendChild(cnt);
 
-      div.appendChild(cnt);
-      div.appendChild(std);
+		  if(img && isSelf && !img.src.match(/answered/) && !img.src.match(/lock/)) {
+			var topicid = img.id.match(/^folderFor(\d+)$/);
+			var std_a = document.createElement('a');
+			std_a.innerHTML = '&#x2714;';
+			std_a.id = 'answerLink'+topicid[1];
+			std_a.setAttribute("onclick",'EM.Pagehacks.SetAnswered("'+topicid[1]+'"); return false;');
+			std_a.style.cssText+=' cursor:pointer;';
+			std.appendChild(std_a);
+		  }
+		  var std_br = document.createElement('br');
+		  std.appendChild(std_br);
+		  std.appendChild(std_own);
+
+		  std.style.cssText+=' vertical-align:top;';
+		  std.style.cssText+=' min-width:1.1em;';
+		  std.style.cssText+=' min-height:23px;';
+
+	  }
+	  div.appendChild(std);
 
       cols[0].appendChild(div);
     }
@@ -3511,10 +3555,10 @@ Pagehacks.prototype = {
       style.innerHTML+= ' .row2.modpost { background-color: #DBFEC4}';
       for(var i = 0; i < colorTpl.length; i++) {
         var tpl = colorTpl[i];
-        style.innerHTML+= ' .row1.emctpl'+i+',.userrow1.emctpl'+i+',.butrow1.emctpl'+i+' { '+tpl.style1+' }';
-        style.innerHTML+= ' .row2.emctpl'+i+',.userrow2.emctpl'+i+',.butrow2.emctpl'+i+' { '+tpl.style2+' }';
-        style.innerHTML+= ' .row3.emctpl'+i+',.userrow3.emctpl'+i+',.butrow3.emctpl'+i+' { '+tpl.style3+' }';
-        style.innerHTML+= ' .row4.emctpl'+i+',.userrow4.emctpl'+i+',.butrow4.emctpl'+i+' { '+tpl.style4+' }';
+        style.innerHTML+= ' .row1.emctpl'+i+',.editrow1.emctpl'+i+',.userrow1.emctpl'+i+',.butrow1.emctpl'+i+' { '+tpl.style1+' }';
+        style.innerHTML+= ' .row2.emctpl'+i+',.editrow2.emctpl'+i+',.userrow2.emctpl'+i+',.butrow2.emctpl'+i+' { '+tpl.style2+' }';
+        style.innerHTML+= ' .row3.emctpl'+i+',.editrow3.emctpl'+i+',.userrow3.emctpl'+i+',.butrow3.emctpl'+i+' { '+tpl.style3+' }';
+        style.innerHTML+= ' .row4.emctpl'+i+',.editrow4.emctpl'+i+',.userrow4.emctpl'+i+',.butrow4.emctpl'+i+' { '+tpl.style4+' }';
       }
 
       head.appendChild(style);
@@ -3572,7 +3616,7 @@ Pagehacks.prototype = {
     var sp = EM.Buttons.mainTable.getElementsByTagName('span');
     var noresult = false;
     for (var i=0; i<sp.length; i++) {
-      if (sp[i].firstChild.textContent.match( /Keine Beitr.*?ge entsprechen Deinen Kriterien./ )) {
+      if (sp[i].textContent.match( /Keine Beitr.*?ge entsprechen Deinen Kriterien./ )) {
         sp[i].innerHTML+='<br><br><a href="javascript:history.go(-1)">Zur&uuml;ck zum Suchformular</a>';
         sp[i].innerHTML+='<br><br><a href="/index.php">Zur&uuml;ck zum Index</a>';
         noresult = true;
@@ -3965,41 +4009,71 @@ Pagehacks.prototype = {
   },
 
   HighlightPosts: function() {
-    var tbl = queryXPathNode(unsafeWindow.document, "/html/body/table[2]/tbody/tr[2]/td/div/table[1]");
-	if(tbl==null) return;
+    var tbl=null;
+    var tbls = unsafeWindow.document.getElementsByClassName("forumline");
+    var elAutor,elNachricht;
+    for(var i=0;i<tbls.length;i++){
+      elAutor=queryXPathNode(tbls[i],"tbody/tr/th[1]");
+      elNachricht=queryXPathNode(tbls[i],"tbody/tr/th[2]");
+      if(elAutor && elNachricht && elAutor.textContent=="Autor" && elNachricht.textContent=="Nachricht"){
+        tbl=tbls[i];
+        break;
+      }
+    }
+	  if(tbl==null) return;
     var tr = queryXPathNodeSet(tbl, "tbody/tr");
 
     var user_killfile = EM.Settings.GetValue('topic','user_killfile');
     var kftype = EM.Settings.GetValue('topic','killFileType');
-    for(var i = 1; i < tr.length - 1; i += 3) {
+    for(var i = 1; i < tr.length - 1; i ++) {
+      if(tr[i].getElementsByTagName("td").length<=1) continue;
       var tdProfile = queryXPathNode(tr[i], "td[1]");
       var tdPost = queryXPathNode(tr[i], "td[2]");
       var tdBottom = queryXPathNode(tr[i+1], "td[1]");
       var linkUser = queryXPathNode(tdProfile, "b/a[1]");
-	  var spanUser = queryXPathNode(linkUser, "span[1]");
-	  var idPost = queryXPathNode(tdProfile, "a[1]").name;
-
+      if(!linkUser){
+        linkUser=tdProfile;
+        var spanUser = queryXPathNode(linkUser, "span[1]/b");
+      }else{
+        var spanUser = queryXPathNode(linkUser, "span[1]");
+      }
+  	  var idPost = queryXPathNode(tdProfile, "a[1]");
+      if(idPost) idPost = idPost.name;
+      else{
+        idPost=i;
+        var newA=document.createElement("a");
+        newA.name=idPost;
+        tdProfile.insertBefore(newA,tdProfile.firstChild);
+      }
+      
+	
       var strUser = spanUser.textContent;
-	  var cssClassAdd = EM.User.helper_getHLStyleByUserLink(linkUser);
+      var isSelf=strUser==EM.User.loggedOnUser
+	    var cssClassAdd = EM.User.helper_getHLStyleByUserLink(linkUser);
+ 
 
-      if (kftype && user_killfile.some(
+      if (!isSelf && kftype && user_killfile.some(
           function (e){
             return e.equals(strUser);
           })) {
         if (kftype==1) {
           var userp = queryXPathNode(tdProfile,"./span[@class='postdetails']");
-          var postc = queryXPathNode(tdPost,"./div[@class='postbody']");
-          userp.style.display='none';
+          var postc = tdPost.getElementsByClassName("postbody")[0];
+          if(userp) userp.style.display='none';
           postc.style.display='none';
           var show = document.createElement('span');
           show.className+=' gensmall';
           show.innerHTML='Post ausgeblendet. <a href="#'+idPost+'" onclick="EM.Pagehacks.ShowHiddenPosts('+idPost+')">Anzeigen</a>';
-          tdPost.insertBefore(show,postc);
+          show.id="showIDSpan"+idPost;
+          postc.parentNode.insertBefore(show,postc);
         } else
         if (kftype==2) {
           tr[i].style.display='none';
-          tr[i+1].style.display='none';
-          var tdSpacer = queryXPathNode(tr[i+2], "td[1]");
+          var tdSpacer = queryXPathNode(tr[i+1], "td[1]");
+          if(tdSpacer.className!="spaceRow"){
+            tr[i+1].style.display='none';
+            tdSpacer = queryXPathNode(tr[i+2], "td[1]");
+          }
           tdSpacer.className+=' gensmall';
           tdSpacer.innerHTML='<b>'+strUser+'</b>: Post ausgeblendet. <a href="#'+idPost+'" onclick="EM.Pagehacks.ShowHiddenPosts('+idPost+')">Anzeigen</a>';
         }
@@ -4014,8 +4088,9 @@ Pagehacks.prototype = {
       tdProfile.className = tdProfile.className.replace(/Highlight/, '');
       tdPost.className = tdPost.className.replace(/Highlight/, '');
       tdBottom.className = tdBottom.className.replace(/Highlight/, '');
-
+ 
       var user_b = queryXPathNode(tdProfile, "b");
+      if(!user_b) user_b = queryXPathNode(tdProfile, "span");
       var post_idlink = queryXPathNode(tdProfile, "a");
       var it_div = document.createElement('span');
       var it_span_user = document.createElement('span');
@@ -4023,28 +4098,32 @@ Pagehacks.prototype = {
       it_div.className = 'intbl';
       it_span_user.className = 'incell left';
       it_span_marks.className = 'gensmall incell right';
-      user_b.parentNode.removeChild(user_b);
-      post_idlink.parentNode.removeChild(post_idlink);
-      it_span_user.appendChild(user_b);
-      it_span_user.insertBefore(post_idlink, user_b);
-      if(EM.Settings.GetValue('topic','button_stalk')) {
-        var l_stalk = EM.User.userlinkButtonFromLink(document, strUser, EM.User.ev_stalk_t, 'topic', 'stalk');
-        it_span_marks.appendChild(l_stalk);
-      }
-      if(EM.Settings.GetValue('topic','button_killfile')) {
-        var l_kill = EM.User.userlinkButtonFromLink(document, strUser, EM.User.ev_kill, 'topic', 'killfile');
-        it_span_marks.appendChild(l_kill);
+      if(user_b) user_b.parentNode.removeChild(user_b);
+      if(post_idlink) post_idlink.parentNode.removeChild(post_idlink);
+      if(user_b) it_span_user.appendChild(user_b);
+      if(post_idlink && user_b) it_span_user.insertBefore(post_idlink, user_b);
+      if(!isSelf){
+        if(EM.Settings.GetValue('topic','button_stalk')) {
+          var l_stalk = EM.User.userlinkButtonFromLink(document, strUser, EM.User.ev_stalk_t, 'topic', 'stalk');
+          it_span_marks.appendChild(l_stalk);
+        }
+        if(EM.Settings.GetValue('topic','button_killfile')) {
+          var l_kill = EM.User.userlinkButtonFromLink(document, strUser, EM.User.ev_kill, 'topic', 'killfile');
+          it_span_marks.appendChild(l_kill);
+        }
       }
       it_div.appendChild(it_span_user);
       it_div.appendChild(it_span_marks);
-      tdProfile.removeChild(queryXPathNode(tdProfile, "br"));
+      var br=queryXPathNode(tdProfile, "br");
+      if(!br) br=queryXPathNode(tdProfile, "span/br");
+      if(br) br.parentNode.removeChild(br);
       tdProfile.insertBefore(it_div, tdProfile.firstChild);
     }
 
     //Leyenfilter
     var vdL = queryXPathNode(unsafeWindow.document, "//a[@id='maintitle']");
     //alert(vdL);
-    if("Wortkette"==vdL.textContent) {
+    if(vdL && "Wortkette"==vdL.textContent) {
       var coords = new Point(0,0);
       coords.CenterInWindow(512,512);
       var w = new OverlayWindow(coords.x,coords.y,512,512,'<object data="'+data.leyenFilter+'" width="512" height="512" type="image/svg+xml"></object>','leyenFilter');
@@ -4064,16 +4143,19 @@ Pagehacks.prototype = {
 
     if (kftype==1) {
       var userp = queryXPathNode(trPost,"./td[1]/span[@class='postdetails']");
-      var postc = queryXPathNode(trPost,"./td[2]/div[@class='postbody']");
-      userp.style.display='';
+      var postc = queryXPathNode(trPost,"./td[2]").getElementsByClassName("postbody")[0];
+      if(userp) userp.style.display='';
       postc.style.display='';
-      var span = queryXPathNode(trPost,"./td[2]/span");
+      var span = unsafeWindow.document.getElementById('showIDSpan'+rel);
       span.parentNode.removeChild(span);
     } else
     if (kftype==2) {
-      trBottom.style.display='';
       trPost.style.display='';
-      var tdSpacer = queryXPathNode(nextNode(trBottom),"td[1]");
+      var tdSpacer = queryXPathNode(trBottom, "td[1]");
+      if(tdSpacer.className.indexOf("spaceRow")<0){
+        trBottom.style.display='';
+        tdSpacer = queryXPathNode(nextNode(trBottom), "td[1]");
+      }
       tdSpacer.innerHTML='';
     }
   },

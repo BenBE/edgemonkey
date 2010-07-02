@@ -2348,7 +2348,7 @@ ShoutboxReplacer.prototype = {
 			str=str.replace(regExp,replacement[1]);
 		}
 		//AutoTagging
-		str = str.replace(/(^|\s)([\w\\]?@(?!@))(?:(?:\{(.+?)\})(?=$|[^\}])|([\w\.\-=@\(\)\[\]\{\}äöüÄÖÜß]+[\w\-=@\(\)\[\]\{\}äöüÄÖÜß]))/g,
+		str = str.replace(/(^|\s)([\w\\]?@(?!@))(?:(?:\{(.+?)\})(?=$|[^\}])|([\w\.\-=@\(\)\[\]\{\}äöüÄÖÜß:\/]+[\w\-=@\(\[\]\{\}äöüÄÖÜß]))/g,
 					  function($0,before,cmd,brace,free) {
 						var txt = free?free:brace;
 						var re;
@@ -2383,7 +2383,7 @@ ShoutboxReplacer.prototype = {
 							}
 						  } break;
 						  case 'K@': {
-							if(txt.indexOf('http://')!=0) txt='http://'+txt;
+							if(txt.indexOf('://')<0) txt='http://'+txt;
 							return before+"[url="+txt+"]*klick*[/url]";
 						  } break;
 						}

@@ -2348,13 +2348,14 @@ ShoutboxReplacer.prototype = {
 					return start+bs+"$"+(digit*1+1);
 				});
 				var noText=this.allowedTextChars;
-				if(s[0]==':') noText+=':';
 				noText='[^'+noText+']';
 				s="(^|"+noText+")"+s+"(?=$|"+noText+")";
 			}
 			if(replacement[3]) regExp=new RegExp(s,"g");
 			else regExp=new RegExp(s,"gi");
-			str=str.replace(regExp,sRepl);
+			for(var j=0;j<2;j++){
+				str=str.replace(regExp,sRepl);
+			}
 		}
 		//AutoTagging
 		str = str.replace(/(^|\s)([\w\\]?@(?!@))(?:(?:\{(.+?)\})(?=$|[^\}])|([\w\.\-=@\(\)\[\]\{\}äöüÄÖÜß:\/]+[\w\-=@\(\[\]\{\}äöüÄÖÜß]))/g,

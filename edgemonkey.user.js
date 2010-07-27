@@ -338,7 +338,7 @@ function isEmpty(what)
 function isHTMLElement(what)
 {
   return !isEmpty(what) &&
-   ((what instanceof HTMLElement) || (what.tagName));
+   ((what instanceof HTMLElement) || (what.nodeType));
 }
 
 //http://www.infocamp.de/javascript_htmlspecialchars.php
@@ -2398,7 +2398,7 @@ ShoutboxReplacer.prototype = {
 						}
 						return $0;
 					  });
-					  
+
 		str = str.replace(/@@/g, '@');
 		return str;
 	},
@@ -2705,7 +2705,7 @@ ShoutboxControls.prototype = {
 
     return true;
   },
-  
+
   ev_shoutchange: function(evt) {
 	var shout = this.form_text.value;
 	shout=this.replacer.do_replace(shout);

@@ -309,6 +309,8 @@ function last_child(node,kind)
 
 function previousNode(node)
 {
+  if (!isHTMLElement(node))
+    return null;
   var res=node.previousSibling;
   while (res!=null && res.nodeType!=1) {
     res = res.previousSibling;
@@ -318,6 +320,8 @@ function previousNode(node)
 
 function nextNode(node)
 {
+  if (!isHTMLElement(node))
+    return null;
   var res=node.nextSibling;
   while (res!=null && res.nodeType!=1) {
     res = res.nextSibling;
@@ -4047,6 +4051,7 @@ function initEdgeApe() {
   else
   {
     EM.Buttons = new ButtonBar();
+    EM.Notifier = new Notifier();
 
     with(EM.Buttons) {
       addButton('/graphics/Profil-Sidebar.gif','Einstellungen','EM.Settings.ev_EditSettings()');
@@ -4075,7 +4080,6 @@ if (SOP_ok && !isEmpty(unsafeWindow.parent.EM)) {
   window.EM = {};
   EM.Settings = new SettingsStore();
   EM.User = new UserManager();
-  EM.Notifier = new Notifier();
   unsafeWindow.EM = EM;
 }
 

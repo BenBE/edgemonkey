@@ -930,7 +930,11 @@ function addMenuItem(tbl,icon,link,text,extralinks){
     with (tbl.insertRow(-1)) {
       with (insertCell(-1)) {
         className = 'row2';
-        innerHTML = "<span class=\"gensmall\">"+extralinks+"</span>";
+        if (isHTMLElement(extralinks)) {
+          appendChild(extralinks);
+        } else {
+          innerHTML = "<span class=\"gensmall\">"+extralinks+"</span>";
+        }
       }
     }
   }
@@ -1287,6 +1291,7 @@ function SettingsStore() {
   ]);
   this.AddCategory('Ergonomie', [
     this.AddSetting( 'Dropdown-Men&uuml; f&uuml;r Meine Ecke', 'pagehack.quickProfMenu', 'bool', true),
+    this.AddSetting( 'Separates Men&uuml; f&uuml;r PNs', 'pagehack.privmenu', 'bool', true),
     this.AddSetting( 'Dropdown-Men&uuml; f&uuml;r Login', 'pagehack.quickLoginMenu', 'bool', true),
     this.AddSetting( 'Dropdown-Men&uuml; f&uuml;r die Suche', 'pagehack.quickSearchMenu', 'bool', true),
     this.AddSetting( 'Dropdown-Men&uuml; f&uuml;r die Sitemap', 'pagehack.quickSitemapMenu', 'bool', true),
@@ -1298,6 +1303,7 @@ function SettingsStore() {
         ], 1),
     this.AddSetting( '"Meine offenen Fragen" um Inline-Markieren erweitern', 'pagehack.answeredLinks', 'bool', true),
     this.AddSetting( 'Links auf Unterforen mit SessionID versehen', 'ui.addsid', 'bool', true),
+    this.AddSetting( 'PN-Dropdown: Ungelesene unten halten', 'pageghack.pndropkeepbottom', 'bool', true),
     this.AddSetting( 'Automatisch auf neue PNs pr&uuml;fen', 'pageghack.pnautocheck',[
           ['Nein', 0],
           ['1 Minute', 1],
@@ -1650,6 +1656,18 @@ function PNAPI() {
   ['inbox','outbox','sentbox','savebox'].forEach(function(b) {
     this[b]=new PNAPI.PNBox(b);
   },this);
+  if (window.location.href.match(/\/privmsg.php/) &&
+      !window.location.search.match(/mode=/)) {
+    var box = window.location.search.match(/folder=([^&]+)/);
+    box = (box&&box.length)?box[1]:'inbox';
+    var start = window.location.search.match(/start=(\d+)/);
+    start = (start&&start.length)?start[1]*1:0;
+
+    console.log('PNAPI', 'Refreshing',box,'from index',start);
+    var table = queryXPathNode(document, '//table[@class="overall"]/tbody/tr[2]/td/div/form/table[@class="forumline"]');
+    this[box].applyTableData(start, table);
+    console.log('PNAPI','Refreshing done');
+  }
 }
 
 PNAPI.VAPN_Team = 0;
@@ -1659,6 +1677,8 @@ PNAPI.VAPN_Topic = 3;
 PNAPI.VAPN_Synonym = 4;
 PNAPI.VAPN_BlogEntry = 5;
 PNAPI.VAPN_BlogComment = 6;
+
+PNAPI.LIFETIME = 600;
 
 PNAPI.prototype = {
   sendPN: function(recipient, title, message) {
@@ -1712,25 +1732,33 @@ PNAPI.PNBox = function (boxname) {
 
 PNAPI.PNBox.prototype = {
   list: function(first,count) {
-    var p1 = Math.floor(first / 50);
-    var pl = Math.floor((first+count-1) / 50);
     var result = [];
 
-    for (var i=p1; i<=pl;i++) {
-      var cachedResult = EM.Cache.get('pmlisting',this.box+','+i);
-      if(!cachedResult.current) {
-        cachedResult = this.updatePage(i);
-      } else {
-        cachedResult = cachedResult.data;
-      }
-      for (var k=0; k<cachedResult.length;k++) {
-        if (cachedResult[k].pos>=first && cachedResult[k].pos<first+count) {
-          result.push(cachedResult[k]);
-        }
-      }
+    //check if EVERYTHING is current
+    var isCurrent=true;
+    var cachedResult = EM.Cache.get('pmlisting',this.box);
+    if(!cachedResult.current) {
+      isCurrent=false;
+    } else {
+      isCurrent = !(cachedResult.data.slice(first,first+count).some(function(id){
+        var info = EM.Cache.get('pmlisting',id);
+        return !info.current;
+      },this));
     }
-    return result.map(function(ms){
-      return new PNAPI.PN(this.box,ms);
+    if (!isCurrent) {
+      //something may not be okay, refresh required part
+      console.log('PNAPI', 'Need to refresh ',this.box,' range ',first,',',count);
+      this.forceUpdate(first,count);
+    }
+    //ok, now we definitely have it in cache
+
+    //answer from there
+    var list = EM.Cache.get('pmlisting',this.box);
+    list=list.data.slice(first,first+count);
+    return list.map(function(id){
+      var cachedResult = EM.Cache.get('pmlisting',id);
+      var ms = cachedResult.data;
+      return new PNAPI.PN(this.box,id,ms);
     },this);
   },
   remove: function(msgid) {
@@ -1741,64 +1769,14 @@ PNAPI.PNBox.prototype = {
       return false;
     }
   },
-  getCurrentMessages: function (page, table) {
-    var start = page*50;
-
-    if (isUndef(table)) {   // if somebody navigates past the end and table is null, that's info too!
-      var lister = new AJAXObject();
-      var host = document.createElement('div');
-      host.innerHTML = lister.SyncRequest('/privmsg.php?folder='+this.box+'&start='+start, null);
-
-      var table = queryXPathNode(host, '/table[@class="overall"]/tbody/tr[2]/td/div/form/table[@class="forumline"]');
-    }
-    if (!table) {
+  getMessage: function(msgid) {
+    var cachedResult = EM.Cache.get('pmlisting',msgid);
+    if (cachedResult.data) {
+      var ms = cachedResult.data;
+      return new PNAPI.PN(this.box,msgid,ms);
+    } else {
       return null;
     }
-
-    var rows = queryXPathNodeSet(table, './/tr[./td[starts-with(@id,"folderFor")]]');
-    if (!rows || !rows.length) {
-      return [];
-    }
-
-    var messages = [];
-
-    var position = start;
-    rows.forEach(function(row) {
-      messages.push({
-        postID: queryXPathNode(row, './td[2]/span/a[2]').href.match(/p=(\d+)/)[1],
-        pos: position++,
-        read: !queryXPathNode(row, './td[1]//img[contains(@title,"Ungelesene Nachricht")]'),
-        title: this.unescapeTitle(queryXPathNode(row, './td[2]/span/a[2]').textContent),
-        postSpecial: (function(){var a=queryXPathNode(row, './td[2]/span/b'); return a?a.textContent:'';})(),
-        received: queryXPathNode(row, './td[2]/span[2]').textContent.trim().substr(0,3)=='von',
-        partner: queryXPathNode(row, './td[2]/span[2]/span').textContent.trim(),
-        partnerID: (function(){var a=queryXPathNode(row, './td[2]/span[2]/span/a'); return a?a.href.match(/u=(\d+)/)[1]:null;})(),
-        date: this.postDatetoJSDate(queryXPathNode(row,'./td[3]/span').innerHTML)
-      });
-    }, this);
-
-    return messages;
-  },
-  updatePage: function(page,table) {
-    var cachedResult = EM.Cache.get('pmlisting',this.box+','+page).data;
-    var msgs = this.getCurrentMessages(page,table);
-    if (cachedResult && cachedResult.length) {
-      if ((cachedResult[0].postID != msgs[0].postID) ||
-          (cachedResult.length!= msgs.length) ||
-          (cachedResult[msgs.length-1].postID != msgs[msgs.length-1].postID)) {
-        //something changed outside this page
-        EM.Cache.touch('pmlisting',this.box+','+(page-1),-1);
-        EM.Cache.touch('pmlisting',this.box+','+(page+1),-1);
-      }
-    }else if (!cachedResult) {
-      //page wasnt here before...
-      EM.Cache.touch('pmlisting',this.box+','+(page-1),-1);
-    }
-
-    var time = 60*EM.Settings.GetValue('pageghack','pnautocheck');
-    if (time<60) time=60;
-    EM.Cache.put('pmlisting',this.box+','+page,msgs,time);
-    return msgs;
   },
   postDatetoJSDate: function(pd) {
     //"Mo 07.12.09<br>23:17"
@@ -1814,13 +1792,95 @@ PNAPI.PNBox.prototype = {
         t = t.replace(/&amp;/g, '&');
     }
     return t;
-  }
+  },
+  forceUpdate: function (first,count) {
+    var p0=Math.floor(first / 50);
+    var p1=Math.floor((first+count-1) / 50);
+    var lister = new AJAXObject();
+    for (var i=p0; i<=p1;i++) {
+      var start = i*50;
+      var host = document.createElement('div');
+      host.innerHTML = lister.SyncRequest('/privmsg.php?folder='+this.box+'&start='+start, null);
+      var table = queryXPathNode(host, '/table[@class="overall"]/tbody/tr[2]/td/div/form/table[@class="forumline"]');
+      this.applyTableData(start, table);
+    }
+  },
+  applyTableData: function(index,table) {
+    console.log('PNAPI', 'Importing ',this.box,' starting from ',index);
+    //first, parse the new data:
+    var rows = queryXPathNodeSet(table, './/tr[./td[starts-with(@id,"folderFor")]]');
+    var current = [];
+    if (rows && rows.length) {
+      var position = index;
+      rows.forEach(function(row) {
+        // extract everything we may want to know later
+        current.push({
+          postID: queryXPathNode(row, './td[2]/span/a[2]').href.match(/p=(\d+)/)[1],
+          pos: position++,
+          read: !queryXPathNode(row, './td[1]//img[contains(@title,"Ungelesene Nachricht")]'),
+          title: this.unescapeTitle(queryXPathNode(row, './td[2]/span/a[2]').textContent),
+          postSpecial: (function(){var a=queryXPathNode(row, './td[2]/span/b'); return a?a.textContent:'';})(),
+          received: queryXPathNode(row, './td[2]/span[2]').textContent.trim().substr(0,3)=='von',
+          partner: queryXPathNode(row, './td[2]/span[2]/span').textContent.trim(),
+          partnerID: (function(){var a=queryXPathNode(row, './td[2]/span[2]/span/a'); return a?a.href.match(/u=(\d+)/)[1]:null;})(),
+          date: this.postDatetoJSDate(queryXPathNode(row,'./td[3]/span').innerHTML)
+        });
+      }, this);
+    }
+    console.log('PNAPI', 'Found ',current.length,' messages to merge');
 
+    var list = EM.Cache.get('pmlisting',this.box);
+    if (list && list.data) {
+      list = list.data;
+    } else {
+      list = [];
+    }
+
+    var _box = this.box;
+    function CD(el) {
+      //reformat data for cache
+      return {
+        box: _box,
+        received: el.received,
+        partner: el.partner,
+        partnerID: el.partnerID,
+        date: el.date,
+        read: el.read,
+        title: el.title,
+        special: el.postSpecial
+      };
+    };
+
+    var refel = [index,0];
+    while (refel[1]<current.length) {
+      var i = list.indexOf(current[refel[1]].postID,refel[0]);
+      if (i<0){
+        list.splice(refel[0],0,current[refel[1]].postID);
+      } else {
+        if(i==refel[0]) {  //where it should be
+          list[i] = current[refel[1]].postID;
+        } else {
+          if (i>refel[0]) {  //elements missing now
+            list.slice(refel[0],i-refel[0]).forEach(function(id) {
+              EM.Cache.touch('pmlisting',id,-1);
+            });
+            list.splice(refel[0],i-refel[0]);
+            list[refel[0]]=current[refel[1]].postID;
+          }
+        }
+      }
+      EM.Cache.put('pmlisting',current[refel[1]].postID, CD(current[refel[1]]), PNAPI.LIFETIME);
+      refel[1]++;
+      refel[0]++;
+    }
+    EM.Cache.put('pmlisting',this.box,list,PNAPI.LIFETIME);
+    console.log('PNAPI', 'Caching for',PNAPI.LIFETIME,'secs');
+  }
 }
 
-PNAPI.PN = function (box,ms) {
+PNAPI.PN = function (box,id,ms) {
   this.box = box;
-  this.id = ms.postID*1;
+  this.id = id*1;
   this.title = ms.title;
   this.unread = !ms.read;
   this.date = ms.date;
@@ -2136,164 +2196,230 @@ UserManager.prototype = {
 }
 
 function Notifier() {
-  this.Element = document.createElement('div');
-  this.Element.style.cssText = 'position:fixed;left:0;top:0;height:0px;right:0;opacity:0.9;overflow:hidden;'+
-                               'background: url("./graphics/slices/df_slice-14.gif") repeat scroll 0 -6px transparent;'+
-                               '-moz-user-select:none;z-index:999999;cursor:default';
-  this.fadeTimer = null;
-  document.body.appendChild(this.Element);
+  var c=queryXPathNode(document,'/html/body/table/tbody/tr[3]/td[2]/table/tbody/tr/td[6]');
+  previousNode(c).style.paddingRight='12px';
+  c.className="overall_menu";
 
-  this.Close = document.createElement('span');
-  this.Element.appendChild(this.Close);
-  this.Close.style.cssText='height:14px;width:14px;float:right;margin:8px 4px;cursor:pointer;background: url("chrome://global/skin/icons/close.png")';
-  this.Close.innerHTML='&nbsp;';
-  var t=this;
-  addEvent(t.Close, 'click', function() {
-    t.fadeOut();
-  });
+  this.container = document.createElement('div');
+  this.container.className="intbl";
+  c.appendChild(this.container);
 
-  this.List = document.createElement('ul');
-  this.Element.appendChild(this.List);
-  this.List.style.cssText='list-style-type: none;margin:0;padding:0';
+  this.PNs = new Notifier.Field(this,'notmen_PN',
+     '<img src="/graphics/PN.gif" border="0"/>',
+     'PNs');
+  this.PNs.setImageAction('javascript:EM.Notifier.MenuPNDropdown()');
+  this.PNs.setTextAction('javascript:EM.Notifier.MenuPNDropdown()');
+  if (!EM.Settings.GetValue('pagehack','privmenu')) {
+    this.PNs.setWidth('0px');
+  }
 
-  this._popups={};
+  this.EMStuff = new Notifier.Field(this,'notmen_EM',
+     '<img src="/graphics/Group.gif" border="0"/>',
+     'EM');
+  this.EMStuff.setImageAction('javascript:EM.Notifier.AlertDropdown()');
+  this.EMStuff.setTextAction('javascript:EM.Notifier.AlertDropdown()');
+  this._alerts=[];
+  this._alertID=0;
+  this._updateText();
 }
 
-Notifier.REPLACE = 1<<0;
-Notifier.POPUP   = 1<<1;
-
 Notifier.prototype = {
-  fadeIn: function() {
-    this.targetHeight=30;
-    this.fade();
-    this.List.style.visibility='visible';
-  },
-  fadeOut: function() {
-    this.List.style.visibility='hidden';
-    if(this.List.children.length) {
-      this.targetHeight=3;
-      var t=this;
-      t.fadeEvent = addEvent(t.Element, 'mouseover', function() {
-        t.fadeIn();
-        removeEvent(t.Element, 'mouseover',t.fadeEvent);
-      });
-    } else {
-      this.targetHeight=0;
-    }
-    this.fade();
-  },
-  fade: function() {
-    if(this.fadeTimer) {
-      window.clearTimeout(this.fadeTimer);
-      this.fadeTimer = null;
-    }
-    var h = parseInt(this.Element.style.height);
-    var step = 2;
-    if (Math.abs(h-this.targetHeight)<step) {
-      this.Element.style.height = this.targetHeight+'px';
-    } else {
-      this.Element.style.height = (h + Math.sign(this.targetHeight-h)*step)+'px';
-      this.fadeTimer = window.setTimeout('EM.Notifier.fade()', 10);
-    }
-  },
-  notify: function(icon,title,detail,uniquename,options) {
-    if (typeof detail=='string') {
-      var k=document.createElement('div');
-      k.innerHTML=detail;
-      detail=k;
-    }
-    if (isEmpty(options)) {
-      options=0;
-    }
-    if (isEmpty(uniquename)) {
-      uniquename=Math.floor(Math.random()*1E6);
-    }
-    uniquename='em_notification_'+uniquename;
+  MenuPNDropdown: function() {
+    this.PNs.setHighlight(false);
+    var link = this.PNs.field;
+    var bcr = link.getBoundingClientRect();
+    var coords = new Point(bcr.left, bcr.bottom-5);
+    coords.TranslateWindow();
 
-    detail.style.display='none';
-    this.fadeIn();
+    var w = new OverlayWindow(coords.x,coords.y,400,EM.Settings.GetValue('pagehack','privmenu')?187:167,'','em_QPN');
+    w.InitDropdown();
 
-    var f = document.getElementById(uniquename);
-    if (f) {
-      if (options & Notifier.REPLACE) {
-        this.realRemove(f);
-      } else {
-        return;
+    var tbl = w.CreateMenu();
+    w.ContentArea.appendChild(document.createElement('div'));
+    with(w.ContentArea.lastElementChild) {
+      innerHTML='<div class="incell" style="vertical-align:middle;text-align:center">Lade Nachrichten....<br>'+
+                '<br><img src="chrome://global/skin/icons/loading_16.png"></div>';
+      className='intbl';
+      with(style) {
+        height='100px';
+        width='100%';
       }
     }
-    f = document.createElement('li');
-    f.id=uniquename;
-    f.style.cssText='float:left;display:inline;overflow:hidden;height:20px; background-color:#EFEFF4;'+
-                    '-moz-border-radius:5px;padding:3px;margin-left:5px;cursor:pointer';
-    f.innerHTML = '<a><img border="0" style="width: 19px; height: 18px;" src="'+icon+'" alt="'+title+'" class="navbar">'+title+'</a>';
-    var c = document.createElement('img');
-    f.appendChild(c);
-    f.appendChild(detail);
-
-    this.List.appendChild(f);
-    var t=this;
-    addEvent(f, 'click', function() {
-      t.expand(f);
-      t.popup(f);
-    });
-
-    c.style.cssText='height:16px;width:16px; margin-top:2px;float:right;cursor:pointer';
-    c.src=data.close;
-    addEvent(c,'click',function(el,e) {
-      e.preventDefault();
-      e.stopPropagation();
-      t.remove(f.id);
-    });
-
-    this.expand(f);
-    if (options & Notifier.POPUP) {
-      setTimeout(function() {t.popup(f);}, 150);
+    if (EM.Settings.GetValue('pagehack','privmenu')) {
+      tbl.addMenuItem(
+        "/graphics/Portal-PM.gif",
+        "/privmsg.php?folder=inbox",
+        "Private Nachrichten",
+        "<a href=\"/privmsg.php?folder=inbox\">Eingang</a>, "+
+        "<a href=\"/privmsg.php?mode=post\">PN schreiben</a>, "+
+        "<a href=\"/privmsg.php?folder=outbox\">Ausgang</a></a>, "+
+        "<a href=\"/privmsg.php?folder=sentbox\">Gesendete</a>, "+
+        "<a href=\"/privmsg.php?folder=savebox\">Archiv</a>"
+        );
     }
-  },
-  expand: function(e) {
-    this.collapseAll();
-    if (isEmpty(e)) {
-      e = this.List.lastElementChild;
+    var l = EM.PN.inbox.list(0,20);
+    if (EM.Settings.GetValue('pageghack','pndropkeepbottom')) {
+      l.sort(function(a,b) {
+        if (a.unread && !b.unread) return -1;
+        if (!a.unread && b.unread) return 1;
+        return b.date-a.date;
+      });
     }
-    e.style.width='';
+    l.slice(0,EM.Settings.GetValue('pagehack','privmenu')?4:5).reverse().forEach(function(pn) {
+      var d = new Date(1000*pn.date);
+      tbl.addMenuItem(
+        '/templates/subSilver/images/folder'+(pn.unread?'_new':'')+'.gif',
+        '/privmsg.php?folder=inbox&amp;mode=read&amp;p='+pn.id,
+        pn.title,
+        '<span class="intbl">'+
+          '<span class="incell left"> von '+
+            (pn.senderID?'<a class="gensmall" href="profile.php?mode=viewprofile&amp;u='+pn.senderID+'">'+
+             pn.sender+'</a>':pn.sender)+
+            ' am '+d.format("d.m.y")+' um '+d.format("H:i")+'</span>'+
+          '<span class="incell right"><a href="javascript:EM.Notifier.MenuPNView('+pn.id+')"'+
+            ' id="pn_dd_'+pn.id+'">Schnellansicht...</a></span></span>');
+    },this);
+    w.ContentArea.removeChild(w.ContentArea.lastElementChild);
   },
-  collapseAll: function() {
-    for (var i=0; i<this.List.children.length; i++) {
-      var e=this.List.children[i];
-      e.style.width='20px';
-    }
-  },
-  popup: function(e) {
-    var a = e.lastElementChild;
-    var coords = new Point(e.getBoundingClientRect().left, e.getBoundingClientRect().bottom);
+  MenuPNView: function(id) {
+    var link= document.getElementById('pn_dd_'+id);
+    var bcr = link.parentNode.parentNode.getBoundingClientRect();
+    var coords = new Point(bcr.left, bcr.bottom);
     coords.TranslateWindow();
-    var w = new OverlayWindow(coords.x,coords.y,300,180,'','em_notificationpopup');
-    w.InitDropdown();
-    a.style.display='';
-    this._popups[e.id]=w;
 
-    w.ContentArea.appendChild(a);
-    w.OnClose = function(wi) {
-      var el=document.getElementById(e.id);
-      var d=wi.ContentArea.lastElementChild;
-      if (el && el.children.length==2) el.appendChild(d);
-      d.style.display='none';
-    }
+    var w = new OverlayWindow(coords.x,coords.y,442,196,'','em_pnview');
+    w.InitDropdown();
+    var msg = EM.PN.inbox.getMessage(id);
+    w.ContentArea.innerHTML =
+     msg?
+      '<div style="background-color: rgb(225, 230, 236); font-family: Verdana,Arial,Helvetica,sans-serif; margin: 5px;">'+
+      '<div style="border: 1px solid rgb(190, 207, 220); padding: 2px; overflow: auto; margin-top: 4px; height: 180px;" class="postbody">'+
+       '<div style="float: right; position: relative; bottom: 3px;">'+
+       '<a class="gensmall" href="privmsg.php?mode=reply&amp;p='+id+'">Auf Nachricht antworten</a>'+
+       '&nbsp;&nbsp;<a class="gensmall" href="privmsg.php?mode=quote&amp;p='+id+'">Nachricht zitieren</a>'+
+       '</div><hr style="clear:both">'+
+      msg.getContent()+
+      '</div></div>':
+      '<div style="background-color: rgb(225, 230, 236); font-family: Verdana,Arial,Helvetica,sans-serif; margin: 5px;">'+
+      '<div style="border: 1px solid rgb(190, 207, 220); padding: 2px; overflow: auto; margin-top: 4px; height: 180px;" class="postbody">'+
+      'Nachricht nicht gefunden!'+
+      '</div></div>';
   },
-  remove: function(e) {
-    if (typeof e=='string')
-      e=document.getElementById(e);
-    this.realRemove(e);
-    if (!this.List.children.length) {
-      this.fadeOut();
+  AlertDropdown: function() {
+    this.EMStuff.setHighlight(false);
+    if (!this._alerts.length)
+      return;
+    var link = this.EMStuff.field;
+    var bcr = link.getBoundingClientRect();
+    var coords = new Point(bcr.left, bcr.bottom-5);
+    coords.TranslateWindow();
+
+    var w = new OverlayWindow(coords.x,coords.y,328,187,'','em_Alerts');
+    this.window = w;
+    w.InitDropdown();
+
+    var tbl = w.CreateMenu();
+
+    [].concat(this._alerts).reverse().forEach(function(el) {
+      var collhtml='<img border="0" align="top" title="ausblenden" src="./graphics/code_half.gif"'+
+                   ' onclick="EM.Notifier.removeAlert('+el.id+')" style="cursor:pointer">&nbsp;';
+      if (isHTMLElement(el.html)) {
+        var d=document.createElement('span');
+        d.className='gensmall';
+        d.innerHTML=collhtml;
+        d.appendChild(el.html);
+        tbl.addMenuItem(el.icon, el.href, el.title, d);
+      } else {
+        tbl.addMenuItem(el.icon, el.href, el.title, collhtml+el.html);
+      }
+    },this);
+    w.ContentArea.appendChild(tbl);
+    w.ContentArea.style.overflow='auto';
+    w.ContentArea.style.height='187px';
+    var t=this;
+    w.OnClose = function() {
+      t.window=null;
+    };
+  },
+  _updateText: function() {
+    if (this._alerts.length) {
+      this.EMStuff.setText(this._alerts.length+' Meldung'+((this._alerts.length>1)?'en':''));
+      this.EMStuff.setWidth('');
     } else {
-      this.expand();
+      this.EMStuff.setText('EM');
+      this.EMStuff.setWidth('0px');
     }
   },
-  realRemove: function(el) {
-    this._popups[el.id].Close();
-    delete this._popups[el.id];
-    this.List.removeChild(el);
+  addAlert: function(icon, title, href, html) {
+    this._alerts.push({"id":++this._alertID,"icon": icon, "title":title, "href":href, "html":html});
+    this._updateText();
+    this.EMStuff.setHighlight(true);
+    return this._alertID;
+  },
+  removeAlert: function(id) {
+    this._alerts = this._alerts.filter(function(e) {
+      return e.id!==id;
+    },this);
+    this._updateText();
+    if (this.window) {
+      this.window.Close();
+      this.AlertDropdown();
+    }
+  }
+}
+
+Notifier.BLINKTIME=700;
+
+Notifier.Field = function(parent,id,img,text) {
+  var cnt2 = document.createElement('div');
+  cnt2.id=id;
+  cnt2.className="incell";
+  cnt2.style.cssText='vertical-align:middle';
+  parent.container.appendChild(cnt2);
+
+  var cnt = document.createElement('div');
+  cnt2.appendChild(cnt);
+  cnt.style.cssText='overflow:hidden;';
+
+  this.field = document.createElement('div');
+  cnt.appendChild(this.field);
+  this.field.style.cssText='display:table;padding-right:12px';
+
+  this.field.innerHTML='<a href="" class="dfnav">'+img+'</a>';
+
+  this.text = document.createElement('a');
+  this.text.style.cssText='display:table-cell;vertical-align:middle';
+  this.text.className='dfnav';
+  this.field.appendChild(this.text);
+  this.text.innerHTML=text;
+
+  this._hilight=null;
+}
+
+Notifier.Field.prototype = {
+  setImageAction: function(act) {
+    this.field.firstChild.href=act;
+  },
+  setTextAction: function(act) {
+    this.text.href=act;
+  },
+  setText: function(text) {
+    this.text.innerHTML=text;
+  },
+  setWidth: function(w) {
+    this.field.parentNode.style.width=w;
+  },
+  setHighlight: function(hl) {
+    window.clearTimeout(this._hilight);
+    this.field.firstChild.style.visibility='';
+    this._hilight=null;
+    if (hl) {
+      var t = this;
+      this._hilight = window.setTimeout(function() {
+        t.field.firstChild.style.visibility=t.field.firstChild.style.visibility?'':'hidden';
+        t._hilight = window.setTimeout(arguments.callee,Notifier.BLINKTIME);
+      },Notifier.BLINKTIME);
+    }
   }
 }
 
@@ -3149,8 +3275,11 @@ function Pagehacks() {
   if(1*EM.Settings.GetValue('pageghack','pnautocheck')) {
     var min = EM.Settings.GetValue('pageghack','pnautocheck');
     if(1 > 1 * min) min = 1;
+    PNAPI.LIFETIME = min * 60 - 30; // 30s less => definitely expired on next regular check
     window.setInterval('EM.Pagehacks.checkPMAuto()', min * 60000);
   }
+  // do a first check, regardless of when regular checks will occur (if at all)
+  window.setTimeout('EM.Pagehacks.checkPMAuto()', 30*1000);
 }
 
 Pagehacks.prototype = {
@@ -3174,35 +3303,12 @@ Pagehacks.prototype = {
   },
 
   checkPMAuto: function() {
-    var l = EM.PN.getUnread('inbox',10);
+    var l = EM.PN.getUnread('inbox',20);
     if (l.length) {
       var s=l.length==1?'Eine neue PN':l.length+' neue PNs';
-      var div = document.createElement('div');
-      var tbl = document.createElement('table');
-      div.appendChild(tbl);
-      div.style.cssText='height:180px;overflow:auto';
-      tbl.className='forumline';
-      tbl.style.cssText='width:100%';
-      tbl.setAttribute('cellspacing',1);
-      tbl.setAttribute('cellpadding',4);
-      var r=1;
-      l.forEach(function(pn) {
-        with (tbl.insertRow(-1)) {
-          with(insertCell(-1)) {
-            className='row'+r;
-            var d = new Date(1000*pn.date);
-            innerHTML='<span class="topictitle"><a href="privmsg.php?folder=inbox&amp;mode=read&amp;p='+pn.id+
-                       '" class="topictitle" target="_blank">'+pn.title+'</a></span><span class="gensmall"><br>von '+
-                       '<span class="name" style="font-size: 10px;">'+
-                       (pn.senderID?'<a class="gensmall" href="profile.php?mode=viewprofile&amp;u='+pn.senderID+'">'+
-                       pn.sender+'</a>':pn.sender)+
-                       ' am '+d.format("d.m.y")+' um '+d.format("H:i")+
-                       '</span></span>';
-          }
-        }
-        r=r==1?2:1;
-      },this);
-      EM.Notifier.notify('/graphics/Portal-PM.gif',s,div,'pnarrived',Notifier.REPLACE|Notifier.POPUP);
+      EM.Notifier.PNs.setText(s);
+      EM.Notifier.PNs.setWidth('');
+      EM.Notifier.PNs.setHighlight(true);
     }
   },
 
@@ -3750,12 +3856,13 @@ Pagehacks.prototype = {
     var coords = new Point(bcr.left, bcr.bottom+10);
     coords.TranslateWindow();
 
-    var w = new OverlayWindow(coords.x,coords.y,328,187,'','em_QPM');
+    var w = new OverlayWindow(coords.x,coords.y,328,EM.Settings.GetValue('pagehack','privmenu')?148:187,'','em_QPM');
     w.InitDropdown();
 
     var tbl = w.CreateMenu();
 
-    tbl.addMenuItem(
+    if (!EM.Settings.GetValue('pagehack','privmenu')) {
+      tbl.addMenuItem(
         "/graphics/Portal-PM.gif",
         "/privmsg.php?folder=inbox",
         "Private Nachrichten",
@@ -3765,6 +3872,7 @@ Pagehacks.prototype = {
         "<a href=\"/privmsg.php?folder=sentbox\">Gesendete</a>, "+
         "<a href=\"/privmsg.php?folder=savebox\">Archiv</a>"
         );
+    }
     tbl.addMenuItem(
         "/graphics/Drafts.gif",
         "/drafts.php",
@@ -4803,6 +4911,7 @@ function initEdgeApe() {
   else
   {
     EM.Buttons = new ButtonBar();
+    EM.Notifier = new Notifier();
 
     with(EM.Buttons) {
       addButton('/graphics/Profil-Sidebar.gif','Einstellungen','EM.Settings.ev_EditSettings()');
@@ -4836,7 +4945,6 @@ if (SOP_ok && !isEmpty(unsafeWindow.parent.EM)) {
   window.EM = {};
   EM.Settings = new SettingsStore();
   EM.User = new UserManager();
-  EM.Notifier = new Notifier();
   unsafeWindow.EM = EM;
 }
 

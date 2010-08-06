@@ -12,10 +12,26 @@
 // @exclude
 // ==/UserScript==
 
-const ScriptVersion = 0.23;
+const ScriptVersion = 0.2499999999999999;
 
 // @changelog
 /*
+0.25-1E-16        10-08-06
+  -SB: AnekdoteAll (Kha)
+  -SB: more shorttags, replacer rewrite (Flamefire, BenBE, Martok)
+  -add: more controls next to userlinks in thread views & search (BenBE, Flamefire)
+  -add: extend links to stay in same forum/subdomain (Martok)
+  -add: login dropdown (BenBE)
+  -add: settings dialog autogenerate (Martok)
+  -add: settings dialog with tabs (Martok)
+  -add: set answered from search=myopen (BenBE, Flamefire)
+  -add: PN API (Martok)
+  -add: flexible caching utility (BenBE)
+  -add: PN notifier (Martok)
+  -add: auto updater (BenBE)
+  -add: sitemap dropdown (BenBE)
+  -SB: ignorelist (Martok)
+
 0.23           10-02-01
   -SB: anekdoter w/Linkification (Martok)
   -SB: moved Topic+Post+Forum+Search Autotags to new syntax (Martok)
@@ -1297,7 +1313,7 @@ function SettingsStore() {
   ]);
   this.AddCategory('Ergonomie', [
     this.AddSetting( 'Dropdown-Men&uuml; f&uuml;r Meine Ecke', 'pagehack.quickProfMenu', 'bool', true),
-    this.AddSetting( 'Separates Men&uuml; f&uuml;r PNs', 'pagehack.privmenu', 'bool', true),
+    this.AddSetting( 'Separates Men&uuml; f&uuml;r PNs', 'pagehack.privmenu', 'bool', false),
     this.AddSetting( 'Dropdown-Men&uuml; f&uuml;r Login', 'pagehack.quickLoginMenu', 'bool', true),
     this.AddSetting( 'Dropdown-Men&uuml; f&uuml;r die Suche', 'pagehack.quickSearchMenu', 'bool', true),
     this.AddSetting( 'Dropdown-Men&uuml; f&uuml;r die Sitemap', 'pagehack.quickSitemapMenu', 'bool', true),
@@ -3138,7 +3154,10 @@ function ShoutboxWindow() {
       (function(cnt,a) {
         addEvent(a,'click',function(d,e) {
           cnt.style.cssText="";
-          a.style.cssText="";
+          a.style.paddingLeft="";
+          if(EM.Settings.GetValue('sb','boldUser')) {
+            a.style.fontWeight="bold";
+          }
           e.preventDefault();
         });
       })(cnt,a);

@@ -1722,6 +1722,15 @@ SettingsStore.prototype = {
       addEvent(i[0], 'click', this.ev_ClearAll);
       addEvent(i[1], 'click', this.ev_ClearUIDCache);
     }
+    var contr = ['Martok','BenBE','Kha','Flamefire'].map(function(a) {return '<a href="/user_'+a+'.html">'+a+'</a>';});
+    var ver = document.createElement('p');
+    ver.className="copyright";
+    ver.style.textAlign="center";
+    ver.innerHTML="Edgemonkey Version "+ScriptVersion+(isUndef(EM.Updater.installed)?'':' Git Revision '+EM.Updater.installed)+
+      '<br>Contributors: '+contr.join(', ')+' &amp; more'+
+      '<br>Developed with git on <a href="http://github.com/martok/edgemonkey">GitHub</a>'+
+      '<br><br>Der Edgemonkey distanziert sich ausdr&uuml;cklich von Fremdbananen jeglicher Art!';
+    this.Window.Body.appendChild(ver);
   },
 
   getControl: function (name) {
@@ -2016,8 +2025,8 @@ function ButtonBar() {
   }
 
   if(isUndef(this.mainTable) || null == this.mainTable) {
-	this.container = {appendChild:function(a){},innerHTML:''};
-	return;
+    this.container = {appendChild:function(a){},innerHTML:''};
+    return;
   }
 
   this.navTable = last_child(this.mainTable.getElementsByTagName('td')[0],'table');
@@ -2544,6 +2553,7 @@ function ShoutboxReplacer(){
     /RFC\s?0*((?!0)\d+)/, "[url=http://www.rfc-editor.org/rfc/rfc$1.txt]RFC $1[/url]",true,false,
     //Implement /me-Tags ;-)
     /^\/me\s(.*)$/, "[i][user]" + EM.User.loggedOnUser + "[/user] $1[/i]",false,false,
+    /^me\{(.+?)\}/, "[i][user]" + EM.User.loggedOnUser + "[/user] $1[/i]",false,false,
     //User-Tag-Verlinkung
     "@GTA", "[user=\"GTA-Place\"]GTA-Place[/user]",true,false,
     "@TUFKAPL", "[user=\"Christian S.\"]TUFKAPL[/user]",true,false,
@@ -3380,10 +3390,10 @@ function Pagehacks() {
     this.AddAnsweredLinks();
   }
   if(/\bforum_(\S+_)?\d+\.html|viewforum\.php/.test(Location)) {
-	if(EM.Buttons.mainTable){
-		var resTable = queryXPathNode(EM.Buttons.mainTable, "tbody/tr[2]/td[1]/div/form/table");
-		this.TLColourize(resTable, "forum");
-	}
+    if(EM.Buttons.mainTable){
+      var resTable = queryXPathNode(EM.Buttons.mainTable, "tbody/tr[2]/td[1]/div/form/table");
+      this.TLColourize(resTable, "forum");
+    }
   }
   if(EM.Settings.GetValue('ui','addsid')) {
     this.AddLinkSIDs();
@@ -3531,7 +3541,7 @@ Pagehacks.prototype = {
   },
 
   TLColourize: function (tltable, isForum) {
-	if(!tltable) return;
+    if(!tltable) return;
     var entries = queryXPathNodeSet(tltable,"./tbody/tr");
     var col_ofs = (isForum)?1:0;
     var singlePostMode=false;;
@@ -3540,15 +3550,15 @@ Pagehacks.prototype = {
       var row = entries[i];
       var cols = queryXPathNodeSet(row, './td');
       if(!cols.length) continue;
-      
+
       if (cols.length<2){
         if(i==1 && cols[0].className=='catHead'){ // looks like single post mode
           singlePostMode=true;
-		}
+        }
         continue;
-     }else if(singlePostMode){
+      }else if(singlePostMode){
         var tuser_l = queryXPathNode(row,"./td[1]/span[1]/b[1]/a[1]");
-	 }else{
+      }else{
         var tuser_l = queryXPathNode(row,"./td[2]/span[2]/span[1]/a[1]");
         if (isForum) {
           var puser_l = queryXPathNode(row,"./td[5]/a[2]");
@@ -3563,14 +3573,14 @@ Pagehacks.prototype = {
       }else{
         var t_cssClassAdd = "";
         tuser_l = queryXPathNode(row,"./td[2]/span[2]/span[1]");
-		if(!tuser_l){
-			console.log('No user link');
-			continue;
-		}
+        if(!tuser_l){
+          console.log('No user link');
+          continue;
+        }
       }
       if(!singlePostMode){
         var p_cssClassAdd = EM.User.helper_getHLStyleByUserLink(puser_l);
-  
+
         var c_cssClassAdd = '';
         if (pcount.textContent == 0) {
             c_cssClassAdd += ' emctpl' + 1; //Red
@@ -3622,61 +3632,61 @@ Pagehacks.prototype = {
 
       var std = document.createElement('span');
       std.className = 'gensmall incell right';
-	  
-	  var strUser=queryXPathNode(tuser_l, './span').textContent;
+
+      var strUser=queryXPathNode(tuser_l, './span').textContent;
 
       var isSelf = tuser_l && (strUser == EM.User.loggedOnUser);
 
       if(singlePostMode){
-		i++;
-		var it_span_user = document.createElement('span');
-		it_span_user.className = 'incell left';
-		it_span_user.innerHTML=cols[0].innerHTML;
-		cols[0].innerHTML='';
-		div.appendChild(it_span_user);
-		if(!isSelf){
-			if(EM.Settings.GetValue('topic','button_stalk')) {
-			  var l_stalk = EM.User.userlinkButtonFromLink(document, strUser, EM.User.ev_stalk_t, 'topic', 'stalk');
-			  std.appendChild(l_stalk);
-			}
-			if(EM.Settings.GetValue('topic','button_killfile')) {
-			  var l_kill = EM.User.userlinkButtonFromLink(document, strUser, EM.User.ev_kill, 'topic', 'killfile');
-			  std.appendChild(l_kill);
-			}
-		}
-	  }else{
-		  var img = queryXPathNode(cols[0], './/img');
-		  
-		  var cnt = document.createElement('span');
-		  cnt.className = 'incell left';
-		  cnt.innerHTML = cols[0].innerHTML;
-		  cols[0].innerHTML = '';
+        i++;
+        var it_span_user = document.createElement('span');
+        it_span_user.className = 'incell left';
+        it_span_user.innerHTML=cols[0].innerHTML;
+        cols[0].innerHTML='';
+        div.appendChild(it_span_user);
+        if(!isSelf){
+          if(EM.Settings.GetValue('topic','button_stalk')) {
+            var l_stalk = EM.User.userlinkButtonFromLink(document, strUser, EM.User.ev_stalk_t, 'topic', 'stalk');
+            std.appendChild(l_stalk);
+          }
+          if(EM.Settings.GetValue('topic','button_killfile')) {
+            var l_kill = EM.User.userlinkButtonFromLink(document, strUser, EM.User.ev_kill, 'topic', 'killfile');
+            std.appendChild(l_kill);
+          }
+        }
+      }else{
+        var img = queryXPathNode(cols[0], './/img');
 
-		  //Fix for a bug in TUFKAPL source
-		  cnt.id = cols[0].id;
-		  cols[0].id = '';
+        var cnt = document.createElement('span');
+        cnt.className = 'incell left';
+        cnt.innerHTML = cols[0].innerHTML;
+        cols[0].innerHTML = '';
 
-		  div.appendChild(cnt);
+        //Fix for a bug in TUFKAPL source
+        cnt.id = cols[0].id;
+        cols[0].id = '';
 
-		  if(img && isSelf && !img.src.match(/answered/) && !img.src.match(/lock/)) {
-			var topicid = img.id.match(/^folderFor(\d+)$/);
-			var std_a = document.createElement('a');
-			std_a.innerHTML = '&#x2714;';
-			std_a.id = 'answerLink'+topicid[1];
-			std_a.setAttribute("onclick",'EM.Pagehacks.SetAnswered("'+topicid[1]+'"); return false;');
-			std_a.style.cssText+=' cursor:pointer;';
-			std.appendChild(std_a);
-		  }
-		  var std_br = document.createElement('br');
-		  std.appendChild(std_br);
-		  std.appendChild(std_own);
+        div.appendChild(cnt);
 
-		  std.style.cssText+=' vertical-align:top;';
-		  std.style.cssText+=' min-width:1.1em;';
-		  std.style.cssText+=' min-height:23px;';
+        if(img && isSelf && !img.src.match(/answered/) && !img.src.match(/lock/)) {
+          var topicid = img.id.match(/^folderFor(\d+)$/);
+          var std_a = document.createElement('a');
+          std_a.innerHTML = '&#x2714;';
+          std_a.id = 'answerLink'+topicid[1];
+          std_a.setAttribute("onclick",'EM.Pagehacks.SetAnswered("'+topicid[1]+'"); return false;');
+          std_a.style.cssText+=' cursor:pointer;';
+          std.appendChild(std_a);
+        }
+        var std_br = document.createElement('br');
+        std.appendChild(std_br);
+        std.appendChild(std_own);
 
-	  }
-	  div.appendChild(std);
+        std.style.cssText+=' vertical-align:top;';
+        std.style.cssText+=' min-width:1.1em;';
+        std.style.cssText+=' min-height:23px;';
+
+      }
+      div.appendChild(std);
 
       cols[0].appendChild(div);
     }
@@ -3941,7 +3951,7 @@ Pagehacks.prototype = {
   AddQuickProfileMenu: function() {
     var link = queryXPathNode(unsafeWindow.document, "/html/body/table/tbody/tr[3]/td[2]/table/tbody/tr/td/a[img][1]");
     var linkText = queryXPathNode(unsafeWindow.document, "/html/body/table/tbody/tr[3]/td[2]/table/tbody/tr/td[3]/a[1]");
-	if(link==null) return;
+    if(link==null) return;
     if('Meine Ecke' == linkText.textContent) {
       link.setAttribute('onclick','return EM.Pagehacks.QuickProfileMenu()');
     }
@@ -3949,7 +3959,7 @@ Pagehacks.prototype = {
 
   AddQuickLoginMenu: function() {
     var link = queryXPathNode(unsafeWindow.document, "/html/body/table/tbody/tr[3]/td[2]/table/tbody/tr/td[4]/a[img][1]");
-	if(link==null) return;
+    if(link==null) return;
     link.setAttribute('onclick','return EM.Pagehacks.QuickLoginMenu()');
   },
 
@@ -4197,6 +4207,7 @@ Pagehacks.prototype = {
 
   AddBetaLinks: function() {
     var table = queryXPathNode(unsafeWindow.document, "/html/body/table/tbody/tr/td[4]/table");
+    if (!table) return;
     table.style.cssText = '';
     RegExp.prototype.replace = function(str,rep) {
       return str.replace(this,rep);
@@ -4262,7 +4273,7 @@ Pagehacks.prototype = {
         break;
       }
     }
-	  if(tbl==null) return;
+    if(tbl==null) return;
     var tr = queryXPathNodeSet(tbl, "tbody/tr");
 
     var user_killfile = EM.Settings.GetValue('topic','user_killfile');
@@ -4276,15 +4287,15 @@ Pagehacks.prototype = {
       if(!linkUser){
         linkUser=tdProfile;
         var spanUser = queryXPathNode(linkUser, "span[1]/b");
-		if(!spanUser) spanUser = queryXPathNode(linkUser, "b[1]/span[1]");
+        if(!spanUser) spanUser = queryXPathNode(linkUser, "b[1]/span[1]");
       }else{
         var spanUser = queryXPathNode(linkUser, "span[1]");
       }
-	  if(!spanUser){
-		console.log("Error on higlighter");
-		continue;
-	  }
-  	  var idPost = queryXPathNode(tdProfile, "a[1]");
+      if(!spanUser){
+        console.log("Error on higlighter");
+        continue;
+      }
+      var idPost = queryXPathNode(tdProfile, "a[1]");
       if(idPost) idPost = idPost.name;
       else{
         idPost=i;
@@ -4292,11 +4303,11 @@ Pagehacks.prototype = {
         newA.name=idPost;
         tdProfile.insertBefore(newA,tdProfile.firstChild);
       }
-      
+
       var strUser = spanUser.textContent;
       var isSelf=strUser==EM.User.loggedOnUser
-	    var cssClassAdd = EM.User.helper_getHLStyleByUserLink(linkUser);
- 
+      var cssClassAdd = EM.User.helper_getHLStyleByUserLink(linkUser);
+
 
       if (!isSelf && kftype && user_killfile.some(
           function (e){
@@ -4334,7 +4345,7 @@ Pagehacks.prototype = {
       tdProfile.className = tdProfile.className.replace(/Highlight/, '');
       tdPost.className = tdPost.className.replace(/Highlight/, '');
       tdBottom.className = tdBottom.className.replace(/Highlight/, '');
- 
+
       var user_b = queryXPathNode(tdProfile, "b");
       if(!user_b) user_b = queryXPathNode(tdProfile, "span");
       var post_idlink = queryXPathNode(tdProfile, "a");

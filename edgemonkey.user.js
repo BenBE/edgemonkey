@@ -2276,7 +2276,7 @@ UserManager.prototype = {
   usernameFromProfile: function(href) {
     var m = href.match(/user_(.*)\.html/);
     if (m)
-      return unescape(m[1]);
+      return unescape(unescape(m[1]));
     else
       return '';
   },
@@ -2299,7 +2299,7 @@ UserManager.prototype = {
     var kftype = EM.Settings.GetValue('topic','killFileType');
 
     var user_span = queryXPathNode(user_link,"./span");
-    var user_name = user_span.textContent;
+    var user_name = EM.User.usernameFromProfile(user_link.href);
 
     var isSelf = user_name == EM.User.loggedOnUser;
     var isMod = /color\:/.test(user_link.style.cssText);
@@ -2578,8 +2578,6 @@ function ShoutboxReplacer(){
     ":+mrgreen:+", ":mrgreen:",false,false,
     "FIF", "Fragen in's Forum :mahn:",true,false,
     "SIWO", "Suche ist weiter oben :mahn:",true,false,
-    //Wall-Hack
-    ":wall:", ":autsch:",true,false,
     //Wikipedia Link support
     /\[\[(\w\w):(\w+)\|(.*?)\]\]/, "[url=http://$1.wikipedia.org/wiki/$2]$3[/url]",true,false,
     /\[\[(\w+)\|(.*?)\]\]/, "[url=http://de.wikipedia.org/wiki/$1]$2[/url]",true,false,

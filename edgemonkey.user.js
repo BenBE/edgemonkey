@@ -278,6 +278,25 @@ var data = {
     '%85c%BCl%FD%06r%BB%A4%C7%DB%ED%BE%14%00%00%00%00IEND%AEB%60%82'
 }
 
+//Chrome compat (Regan)
+function eval_c(a) {
+  if (navigator.appVersion.indexOf('Chrome') > -1) {
+    return JSON.parse(a);
+  }
+  else {
+    return eval(a);
+  }
+}
+
+function uneval_c(a) {
+  if (navigator.appVersion.indexOf('Chrome') > -1) {
+    return JSON.stringify(a);
+  }
+  else {
+    return uneval(a);
+  }  
+}
+
 function queryXPath(node,xpath){
     //I hate having to always type this crap ...
     var docref = (node.body)?node:node.ownerDocument;

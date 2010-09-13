@@ -2389,7 +2389,7 @@ ShoutboxReplacer.prototype = {
 						}
 						return $0;
 					  });
-					  
+
 		str = str.replace(/@@/g, '@');
 		return str;
 	},
@@ -2696,7 +2696,7 @@ ShoutboxControls.prototype = {
 
     return true;
   },
-  
+
   ev_shoutchange: function(evt) {
 	var shout = this.form_text.value;
 	shout=this.replacer.do_replace(shout);
@@ -3305,7 +3305,7 @@ Pagehacks.prototype = {
       var row = entries[i];
       var cols = queryXPathNodeSet(row, './td');
       if(!cols.length) continue;
-      
+
       if (cols.length<2){
         if(i==1 && cols[0].className=='catHead'){ // looks like single post mode
           singlePostMode=true;
@@ -3330,7 +3330,7 @@ Pagehacks.prototype = {
       }
       if(!singlePostMode){
         var p_cssClassAdd = EM.User.helper_getHLStyleByUserLink(puser_l);
-  
+
         var c_cssClassAdd = '';
         if (pcount.textContent == 0) {
             c_cssClassAdd += ' emctpl' + 1; //Red
@@ -3382,7 +3382,7 @@ Pagehacks.prototype = {
 
       var std = document.createElement('span');
       std.className = 'gensmall incell right';
-	  
+
 	  var strUser=queryXPathNode(tuser_l, './span').textContent;
 
       var isSelf = tuser_l && (strUser == EM.User.loggedOnUser);
@@ -3406,7 +3406,7 @@ Pagehacks.prototype = {
 		}
 	  }else{
 		  var img = queryXPathNode(cols[0], './/img');
-		  
+
 		  var cnt = document.createElement('span');
 		  cnt.className = 'incell left';
 		  cnt.innerHTML = cols[0].innerHTML;
@@ -4045,12 +4045,12 @@ Pagehacks.prototype = {
         newA.name=idPost;
         tdProfile.insertBefore(newA,tdProfile.firstChild);
       }
-      
-	
+
+
       var strUser = spanUser.textContent;
       var isSelf=strUser==EM.User.loggedOnUser
 	    var cssClassAdd = EM.User.helper_getHLStyleByUserLink(linkUser);
- 
+
 
       if (!isSelf && kftype && user_killfile.some(
           function (e){
@@ -4088,7 +4088,7 @@ Pagehacks.prototype = {
       tdProfile.className = tdProfile.className.replace(/Highlight/, '');
       tdPost.className = tdPost.className.replace(/Highlight/, '');
       tdBottom.className = tdBottom.className.replace(/Highlight/, '');
- 
+
       var user_b = queryXPathNode(tdProfile, "b");
       if(!user_b) user_b = queryXPathNode(tdProfile, "span");
       var post_idlink = queryXPathNode(tdProfile, "a");

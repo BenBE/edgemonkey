@@ -4811,10 +4811,11 @@ if (SOP_ok && !isEmpty(unsafeWindow.parent.EM)) {
   window.EM = unsafeWindow.parent.EM;
   unsafeWindow.EM = EM;
 } else {
-  window.EM = {};
+  EM = {};
   EM.Settings = new SettingsStore();
   EM.User = new UserManager();
   EM.Notifier = new Notifier();
+  window.EM = EM;
   unsafeWindow.EM = EM;
 }
 

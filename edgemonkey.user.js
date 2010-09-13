@@ -12,10 +12,26 @@
 // @exclude
 // ==/UserScript==
 
-const ScriptVersion = 0.23;
+const ScriptVersion = 0.2499999999999999;
 
 // @changelog
 /*
+0.25-1E-16        10-08-06
+  -SB: AnekdoteAll (Kha)
+  -SB: more shorttags, replacer rewrite (Flamefire, BenBE, Martok)
+  -add: more controls next to userlinks in thread views & search (BenBE, Flamefire)
+  -add: extend links to stay in same forum/subdomain (Martok)
+  -add: login dropdown (BenBE)
+  -add: settings dialog autogenerate (Martok)
+  -add: settings dialog with tabs (Martok)
+  -add: set answered from search=myopen (BenBE, Flamefire)
+  -add: PN API (Martok)
+  -add: flexible caching utility (BenBE)
+  -add: PN notifier (Martok)
+  -add: auto updater (BenBE)
+  -add: sitemap dropdown (BenBE)
+  -SB: ignorelist (Martok)
+
 0.23           10-02-01
   -SB: anekdoter w/Linkification (Martok)
   -SB: moved Topic+Post+Forum+Search Autotags to new syntax (Martok)
@@ -327,6 +343,8 @@ function last_child(node,kind)
 
 function previousNode(node)
 {
+  if (!isHTMLElement(node))
+    return null;
   var res=node.previousSibling;
   while (res!=null && res.nodeType!=1) {
     res = res.previousSibling;
@@ -336,6 +354,8 @@ function previousNode(node)
 
 function nextNode(node)
 {
+  if (!isHTMLElement(node))
+    return null;
   var res=node.nextSibling;
   while (res!=null && res.nodeType!=1) {
     res = res.nextSibling;
@@ -357,7 +377,7 @@ function isEmpty(what)
 function isHTMLElement(what)
 {
   return !isEmpty(what) &&
-   ((what instanceof HTMLElement) || (what.tagName));
+   ((what instanceof HTMLElement) || (what.nodeType));
 }
 
 //http://www.infocamp.de/javascript_htmlspecialchars.php
@@ -592,6 +612,16 @@ Date.prototype.toISO8601String = function (format, offset) {
     if (format > 3) { str += offset; }
     return str;
 }
+
+function EventQueue() {}
+EventQueue.prototype= new Array();
+EventQueue.prototype.fire=function(data){
+  for (var i=0; i<this.length; i++) {
+    if (!this[i](data))
+      return false;
+  }
+  return true;
+};
 
 function encodeLongShout(text)
 {
@@ -945,7 +975,11 @@ function addMenuItem(tbl,icon,link,text,extralinks){
     with (tbl.insertRow(-1)) {
       with (insertCell(-1)) {
         className = 'row2';
-        innerHTML = "<span class=\"gensmall\">"+extralinks+"</span>";
+        if (isHTMLElement(extralinks)) {
+          appendChild(extralinks);
+        } else {
+          innerHTML = "<span class=\"gensmall\">"+extralinks+"</span>";
+        }
       }
     }
   }
@@ -1091,30 +1125,25 @@ document.overlayWindows = {
         return this._list[i];
     }
     return null;
+  },
+  getTopmost: function() {
+    var agg=null;
+    this._list.forEach(function (curr) {
+      if (!agg || (curr.Outer.style.zIndex*1>agg.Outer.style.zIndex*1)) {
+        agg = curr;
+      }
+    });
+    return agg;
   }
 }
 
 function bringToFront(obj)
 {
-    var divs = document.getElementsByClassName('overlayWin','div');
+    var top = null;
     var max_index = 0;
-    var cur_index;
-
-    // Compute the maximal z-index of
-    // other absolute-positioned divs
-    for (i = 0; i < divs.length; i++)
-    {
-      var item = divs[i];
-      if (item == obj || item.style.zIndex == '') {
-        continue;
-      }
-
-      cur_index = parseInt(item.style.zIndex);
-      if (max_index < cur_index)
-      {
-        max_index = cur_index;
-      }
-    }
+    top = document.overlayWindows.getTopmost();
+    if (top)
+      max_index = top.Outer.style.zIndex;
 
     obj.style.zIndex = max_index + 1;
     return max_index;
@@ -1221,7 +1250,7 @@ OverlayWindow.prototype = {
   },
 
   InitDropdown: function() {
-    this.Outer.style.zIndex=1000;
+    this.BringToFront();
 
     this.evgmousedown = addGlobalEvent(this.Frame,'mousedown',function(dv,event) {
       var clicked = event.target;
@@ -1232,9 +1261,10 @@ OverlayWindow.prototype = {
         clicked = clicked.offsetParent;
       }
       //if we get here, someone clicked outside
-
-      dv.Window.Close();
-      event.preventDefault();
+      if (document.overlayWindows.getTopmost()==dv.Window) {
+        dv.Window.Close();
+        event.preventDefault();
+      }
     },true);
   },
 
@@ -1302,6 +1332,7 @@ function SettingsStore() {
   ]);
   this.AddCategory('Ergonomie', [
     this.AddSetting( 'Dropdown-Men&uuml; f&uuml;r Meine Ecke', 'pagehack.quickProfMenu', 'bool', true),
+    this.AddSetting( 'Separates Men&uuml; f&uuml;r PNs', 'pagehack.privmenu', 'bool', false),
     this.AddSetting( 'Dropdown-Men&uuml; f&uuml;r Login', 'pagehack.quickLoginMenu', 'bool', true),
     this.AddSetting( 'Dropdown-Men&uuml; f&uuml;r die Suche', 'pagehack.quickSearchMenu', 'bool', true),
     this.AddSetting( 'Dropdown-Men&uuml; f&uuml;r die Sitemap', 'pagehack.quickSitemapMenu', 'bool', true),
@@ -1313,6 +1344,7 @@ function SettingsStore() {
         ], 1),
     this.AddSetting( '"Meine offenen Fragen" um Inline-Markieren erweitern', 'pagehack.answeredLinks', 'bool', true),
     this.AddSetting( 'Links auf Unterforen mit SessionID versehen', 'ui.addsid', 'bool', true),
+    this.AddSetting( 'PN-Dropdown: Ungelesene unten halten', 'pageghack.pndropkeepbottom', 'bool', true),
     this.AddSetting( 'Automatisch auf neue PNs pr&uuml;fen', 'pageghack.pnautocheck',[
           ['Nein', 0],
           ['1 Minute', 1],
@@ -1367,7 +1399,8 @@ function SettingsStore() {
     this.AddSetting( 'Shouts von ausgew&auml;hlten Nutzern hervorheben', 'sb.highlight_stalk', 'color', 0),
     this.AddSetting( 'Shouts von Moderatoren/Admins hervorheben', 'sb.highlight_mod', 'color', 0),
     this.AddSetting( 'Hervorzuhebende Benutzer<br />(Ein Benutzer je Zeile)', 'sb.user_stalk', 'list', []),
-    this.AddSetting( 'Zeige Link zum Schreiben einer PN an Benutzer', 'sb.pnlink_active', 'bool', true)
+    this.AddSetting( 'Zeige Link zum Schreiben einer PN an Benutzer', 'sb.pnlink_active', 'bool', true),
+    this.AddSetting( 'Auszublendende Benutzer<br />(Ein Benutzer je Zeile)', 'sb.user_killfile', 'list', [])
   ]);
 
   this.AddCategory('UpdateMonkey', [
@@ -1376,12 +1409,71 @@ function SettingsStore() {
           ['Stable Releases (Release Tags)', 0],
           ['Testing Releases (Master Branch)', 1],
           ['Unstable Releases (Custom Branch)', 2]
-        ], 0),
-    this.AddSetting( 'Quelle für Updates','update.source_repo', [
+        ], 0, {
+        onChange: function (t,w,e) {
+            var src = w.getControl('update_source_repo');
+            var brn = w.getControl('update_source_branch');
+            src.disabled=w.getValue('update_update_type')==0;
+            brn.disabled=w.getValue('update_update_type')!=2;
+
+            if (!brn.disabled) {
+              //simulate change to get elected^W^W^W load branches
+              var ev = document.createEvent("HTMLEvents");
+              ev.initEvent("change", true, false);
+              src.dispatchEvent(ev);
+            }
+
+            if (!src.disabled || isEmpty(e)) {
+              if (isEmpty(e)) {
+                //initial change-> display current setting
+                r=EM.Settings.GetValue('update','source_repo');
+              }
+              for (var i=src.options.length-1; i>=0; i--) {
+                src.remove(i);
+              }
+              EM.Updater.updateNetwork(function(upd,network) {
+                [].concat(network).sort(function (l,r) {
+                  return (new Date(l.created_at))-(new Date(r.created_at));
+                }).forEach(function(rep) {
+                  var n=rep.owner+'#'+rep.name;
+                  src.options[src.options.length]=new Option(rep.owner,n,n==r);
+                });
+                return false;
+              });
+            }
+          }
+        }),
+    this.AddSetting( 'Quelle f&uuml;r Updates<br><a href="http://github.com/martok/edgemonkey/network">GitHub network</a>',
+        'update.source_repo', [
+          ['Flamefire', 'Flamefire#edgemonkey'],
           ['BenBE', 'BenBE#edgemonkey'],
           ['Kha', 'Kha#edgemonkey'],
           ['martok', 'martok#edgemonkey']
-        ], 'martok#edgemonkey'),
+        ], 'martok#edgemonkey', {
+        onChange: function (t,w,e) {
+            if (w.getValue('update_update_type')!=2)
+              return;
+            var repo = w.getValue('update_source_repo').split('#');
+            var brn = w.getControl('update_source_branch');
+            var b=brn.value;
+            if (isEmpty(e)) {
+              //initial change-> display current setting
+              b=EM.Settings.GetValue('update','source_branch');
+            }
+            for (var i=brn.options.length-1; i>=0; i--) {
+              brn.remove(i);
+            }
+            EM.Updater.updateBranches(repo[0],repo[1],function(upd,branches) {
+              var lst=[];
+              for (var branch in branches) {
+                lst.push(branch);
+              }
+              lst.sort().forEach(function(br) {
+                brn.options[brn.options.length]=new Option(br,br,br==b);
+              });
+            });
+          }
+        }),
     this.AddSetting( 'Source Branch (Nur bei Unstable Releases)','update.source_branch', [
           ['master', 'master']
         ], 'master'),
@@ -1410,6 +1502,8 @@ function SettingsStore() {
       this.cookies[k] = Deserialize(unescape(res[2]));
     }
   }
+
+  this.onSettingChanged = new EventQueue();
 }
 
 var Settings_SaveToDisk = function () { // global deklarieren
@@ -1480,6 +1574,7 @@ SettingsStore.prototype = {
     this.Window.Body.appendChild(head);
     head=head.insertRow(-1);
     var firstTab = null;
+    var onChanges = [];
     this.Categories.forEach(function(c){
       if(head.children.length>=4) head=head.parentNode.insertRow(-1);
       var h=head.insertCell(-1);
@@ -1531,6 +1626,7 @@ SettingsStore.prototype = {
           var w = this.Window;
           if (s.events.onChange) {
             e.addEventListener('change',function(e) { s.events.onChange(e.target,w,e); },true);
+            onChanges.push(function() {s.events.onChange(e,w,null)});
           }
           if (s.events.onExit) {
             e.addEventListener('blur',function(e) { s.events.onExit(e.target,w,e); },true);
@@ -1559,9 +1655,12 @@ SettingsStore.prototype = {
     this.Window.ButtonBar.className = 'forumline';
     this.Window.ButtonBar.style.cssText = 'width:98%; margin:5px;';
     this.Window.Body.appendChild(this.Window.ButtonBar);
+
+    onChanges.forEach(function(f) {f()});
   },
 
   ev_SaveDialog: function(evt) {
+    var old=eval(uneval(EM.Settings.Values));
     with (EM.Settings.Window) {
       EM.Settings.Categories.forEach(function(c){
         c.settings.forEach(function(s) {
@@ -1577,6 +1676,14 @@ SettingsStore.prototype = {
         }, this);
       }, this);
     }
+    var diff={};
+    for (key in old) {
+      if (old[key]!=EM.Settings.Values[key]) {
+        diff[key]=EM.Settings.Values[key];
+      }
+    }
+
+    EM.Settings.onSettingChanged.fire({Old:old, Modified:diff});
     Settings_SaveToDisk();
     if (confirm('Änderungen gespeichert.\nSie werden aber erst beim nächsten Seitenaufruf wirksam. Jetzt neu laden?')){
       window.location.reload(false);
@@ -1650,6 +1757,15 @@ SettingsStore.prototype = {
       addEvent(i[0], 'click', this.ev_ClearAll);
       addEvent(i[1], 'click', this.ev_ClearUIDCache);
     }
+    var contr = ['Martok','BenBE','Kha','Flamefire'].map(function(a) {return '<a href="/user_'+a+'.html">'+a+'</a>';});
+    var ver = document.createElement('p');
+    ver.className="copyright";
+    ver.style.textAlign="center";
+    ver.innerHTML="Edgemonkey Version "+ScriptVersion+(isUndef(EM.Updater.installed)?'':' Git Revision '+EM.Updater.installed)+
+      '<br>Contributors: '+contr.join(', ')+' &amp; more'+
+      '<br>Developed with git on <a href="http://github.com/martok/edgemonkey">GitHub</a>'+
+      '<br><br>Der Edgemonkey distanziert sich ausdr&uuml;cklich von Fremdbananen jeglicher Art!';
+    this.Window.Body.appendChild(ver);
   },
 
   getControl: function (name) {
@@ -1665,6 +1781,18 @@ function PNAPI() {
   ['inbox','outbox','sentbox','savebox'].forEach(function(b) {
     this[b]=new PNAPI.PNBox(b);
   },this);
+  if (window.location.href.match(/\/privmsg.php/) &&
+      !window.location.search.match(/mode=/)) {
+    var box = window.location.search.match(/folder=([^&]+)/);
+    box = (box&&box.length)?box[1]:'inbox';
+    var start = window.location.search.match(/start=(\d+)/);
+    start = (start&&start.length)?start[1]*1:0;
+
+    console.log('PNAPI', 'Refreshing',box,'from index',start);
+    var table = queryXPathNode(document, '//table[@class="overall"]/tbody/tr[2]/td/div/form/table[@class="forumline"]');
+    this[box].applyTableData(start, table);
+    console.log('PNAPI','Refreshing done');
+  }
 }
 
 PNAPI.VAPN_Team = 0;
@@ -1674,6 +1802,8 @@ PNAPI.VAPN_Topic = 3;
 PNAPI.VAPN_Synonym = 4;
 PNAPI.VAPN_BlogEntry = 5;
 PNAPI.VAPN_BlogComment = 6;
+
+PNAPI.LIFETIME = 600;
 
 PNAPI.prototype = {
   sendPN: function(recipient, title, message) {
@@ -1727,25 +1857,33 @@ PNAPI.PNBox = function (boxname) {
 
 PNAPI.PNBox.prototype = {
   list: function(first,count) {
-    var p1 = Math.floor(first / 50);
-    var pl = Math.floor((first+count-1) / 50);
     var result = [];
 
-    for (var i=p1; i<=pl;i++) {
-      var cachedResult = EM.Cache.get('pmlisting',this.box+','+i);
-      if(!cachedResult.current) {
-        cachedResult = this.updatePage(i);
-      } else {
-        cachedResult = cachedResult.data;
-      }
-      for (var k=0; k<cachedResult.length;k++) {
-        if (cachedResult[k].pos>=first && cachedResult[k].pos<first+count) {
-          result.push(cachedResult[k]);
-        }
-      }
+    //check if EVERYTHING is current
+    var isCurrent=true;
+    var cachedResult = EM.Cache.get('pmlisting',this.box);
+    if(!cachedResult.current) {
+      isCurrent=false;
+    } else {
+      isCurrent = !(cachedResult.data.slice(first,first+count).some(function(id){
+        var info = EM.Cache.get('pmlisting',id);
+        return !info.current;
+      },this));
     }
-    return result.map(function(ms){
-      return new PNAPI.PN(this.box,ms);
+    if (!isCurrent) {
+      //something may not be okay, refresh required part
+      console.log('PNAPI', 'Need to refresh ',this.box,' range ',first,',',count);
+      this.forceUpdate(first,count);
+    }
+    //ok, now we definitely have it in cache
+
+    //answer from there
+    var list = EM.Cache.get('pmlisting',this.box);
+    list=list.data.slice(first,first+count);
+    return list.map(function(id){
+      var cachedResult = EM.Cache.get('pmlisting',id);
+      var ms = cachedResult.data;
+      return new PNAPI.PN(this.box,id,ms);
     },this);
   },
   remove: function(msgid) {
@@ -1756,64 +1894,14 @@ PNAPI.PNBox.prototype = {
       return false;
     }
   },
-  getCurrentMessages: function (page, table) {
-    var start = page*50;
-
-    if (isUndef(table)) {   // if somebody navigates past the end and table is null, that's info too!
-      var lister = new AJAXObject();
-      var host = document.createElement('div');
-      host.innerHTML = lister.SyncRequest('/privmsg.php?folder='+this.box+'&start='+start, null);
-
-      var table = queryXPathNode(host, '/table[@class="overall"]/tbody/tr[2]/td/div/form/table[@class="forumline"]');
-    }
-    if (!table) {
+  getMessage: function(msgid) {
+    var cachedResult = EM.Cache.get('pmlisting',msgid);
+    if (cachedResult.data) {
+      var ms = cachedResult.data;
+      return new PNAPI.PN(this.box,msgid,ms);
+    } else {
       return null;
     }
-
-    var rows = queryXPathNodeSet(table, './/tr[./td[starts-with(@id,"folderFor")]]');
-    if (!rows || !rows.length) {
-      return [];
-    }
-
-    var messages = [];
-
-    var position = start;
-    rows.forEach(function(row) {
-      messages.push({
-        postID: queryXPathNode(row, './td[2]/span/a[2]').href.match(/p=(\d+)/)[1],
-        pos: position++,
-        read: !queryXPathNode(row, './td[1]//img[contains(@title,"Ungelesene Nachricht")]'),
-        title: this.unescapeTitle(queryXPathNode(row, './td[2]/span/a[2]').textContent),
-        postSpecial: (function(){var a=queryXPathNode(row, './td[2]/span/b'); return a?a.textContent:'';})(),
-        received: queryXPathNode(row, './td[2]/span[2]').textContent.trim().substr(0,3)=='von',
-        partner: queryXPathNode(row, './td[2]/span[2]/span').textContent.trim(),
-        partnerID: (function(){var a=queryXPathNode(row, './td[2]/span[2]/span/a'); return a?a.href.match(/u=(\d+)/)[1]:null;})(),
-        date: this.postDatetoJSDate(queryXPathNode(row,'./td[3]/span').innerHTML)
-      });
-    }, this);
-
-    return messages;
-  },
-  updatePage: function(page,table) {
-    var cachedResult = EM.Cache.get('pmlisting',this.box+','+page).data;
-    var msgs = this.getCurrentMessages(page,table);
-    if (cachedResult && cachedResult.length) {
-      if ((cachedResult[0].postID != msgs[0].postID) ||
-          (cachedResult.length!= msgs.length) ||
-          (cachedResult[msgs.length-1].postID != msgs[msgs.length-1].postID)) {
-        //something changed outside this page
-        EM.Cache.touch('pmlisting',this.box+','+(page-1),-1);
-        EM.Cache.touch('pmlisting',this.box+','+(page+1),-1);
-      }
-    }else if (!cachedResult) {
-      //page wasnt here before...
-      EM.Cache.touch('pmlisting',this.box+','+(page-1),-1);
-    }
-
-    var time = 60*EM.Settings.GetValue('pageghack','pnautocheck');
-    if (time<60) time=60;
-    EM.Cache.put('pmlisting',this.box+','+page,msgs,time);
-    return msgs;
   },
   postDatetoJSDate: function(pd) {
     //"Mo 07.12.09<br>23:17"
@@ -1829,13 +1917,95 @@ PNAPI.PNBox.prototype = {
         t = t.replace(/&amp;/g, '&');
     }
     return t;
-  }
+  },
+  forceUpdate: function (first,count) {
+    var p0=Math.floor(first / 50);
+    var p1=Math.floor((first+count-1) / 50);
+    var lister = new AJAXObject();
+    for (var i=p0; i<=p1;i++) {
+      var start = i*50;
+      var host = document.createElement('div');
+      host.innerHTML = lister.SyncRequest('/privmsg.php?folder='+this.box+'&start='+start, null);
+      var table = queryXPathNode(host, '/table[@class="overall"]/tbody/tr[2]/td/div/form/table[@class="forumline"]');
+      this.applyTableData(start, table);
+    }
+  },
+  applyTableData: function(index,table) {
+    console.log('PNAPI', 'Importing ',this.box,' starting from ',index);
+    //first, parse the new data:
+    var rows = queryXPathNodeSet(table, './/tr[./td[starts-with(@id,"folderFor")]]');
+    var current = [];
+    if (rows && rows.length) {
+      var position = index;
+      rows.forEach(function(row) {
+        // extract everything we may want to know later
+        current.push({
+          postID: queryXPathNode(row, './td[2]/span/a[2]').href.match(/p=(\d+)/)[1],
+          pos: position++,
+          read: !queryXPathNode(row, './td[1]//img[contains(@title,"Ungelesene Nachricht")]'),
+          title: this.unescapeTitle(queryXPathNode(row, './td[2]/span/a[2]').textContent),
+          postSpecial: (function(){var a=queryXPathNode(row, './td[2]/span/b'); return a?a.textContent:'';})(),
+          received: queryXPathNode(row, './td[2]/span[2]').textContent.trim().substr(0,3)=='von',
+          partner: queryXPathNode(row, './td[2]/span[2]/span').textContent.trim(),
+          partnerID: (function(){var a=queryXPathNode(row, './td[2]/span[2]/span/a'); return a?a.href.match(/u=(\d+)/)[1]:null;})(),
+          date: this.postDatetoJSDate(queryXPathNode(row,'./td[3]/span').innerHTML)
+        });
+      }, this);
+    }
+    console.log('PNAPI', 'Found ',current.length,' messages to merge');
 
+    var list = EM.Cache.get('pmlisting',this.box);
+    if (list && list.data) {
+      list = list.data;
+    } else {
+      list = [];
+    }
+
+    var _box = this.box;
+    function CD(el) {
+      //reformat data for cache
+      return {
+        box: _box,
+        received: el.received,
+        partner: el.partner,
+        partnerID: el.partnerID,
+        date: el.date,
+        read: el.read,
+        title: el.title,
+        special: el.postSpecial
+      };
+    };
+
+    var refel = [index,0];
+    while (refel[1]<current.length) {
+      var i = list.indexOf(current[refel[1]].postID,refel[0]);
+      if (i<0){
+        list.splice(refel[0],0,current[refel[1]].postID);
+      } else {
+        if(i==refel[0]) {  //where it should be
+          list[i] = current[refel[1]].postID;
+        } else {
+          if (i>refel[0]) {  //elements missing now
+            list.slice(refel[0],i-refel[0]).forEach(function(id) {
+              EM.Cache.touch('pmlisting',id,-1);
+            });
+            list.splice(refel[0],i-refel[0]);
+            list[refel[0]]=current[refel[1]].postID;
+          }
+        }
+      }
+      EM.Cache.put('pmlisting',current[refel[1]].postID, CD(current[refel[1]]), PNAPI.LIFETIME);
+      refel[1]++;
+      refel[0]++;
+    }
+    EM.Cache.put('pmlisting',this.box,list,PNAPI.LIFETIME);
+    console.log('PNAPI', 'Caching for',PNAPI.LIFETIME,'secs');
+  }
 }
 
-PNAPI.PN = function (box,ms) {
+PNAPI.PN = function (box,id,ms) {
   this.box = box;
-  this.id = ms.postID*1;
+  this.id = id*1;
   this.title = ms.title;
   this.unread = !ms.read;
   this.date = ms.date;
@@ -1890,8 +2060,8 @@ function ButtonBar() {
   }
 
   if(isUndef(this.mainTable) || null == this.mainTable) {
-	this.container = {appendChild:function(a){},innerHTML:''};
-	return;
+    this.container = {appendChild:function(a){},innerHTML:''};
+    return;
   }
 
   this.navTable = last_child(this.mainTable.getElementsByTagName('td')[0],'table');
@@ -2055,6 +2225,22 @@ UserManager.prototype = {
     Settings_SaveToDisk();
     window.location.reload();
   },
+  ev_sbkill: function(user) {
+// don't really know why it gets double-escaped...
+//    user = unescape(user);
+
+    var user_list = EM.Settings.GetValue('sb','user_killfile');
+
+    if (user_list.some(function (item) { return item.equals(user); })) {
+      user_list = user_list.filter(function(el) { return !el.equals(user); });
+    } else {
+      user_list.push(user);
+    }
+
+    EM.Settings.SetValue('sb','user_killfile',user_list);
+    Settings_SaveToDisk();
+    window.location.reload();
+  },
   ev_stalk_t: function(user) {
 // don't really know why it gets double-escaped...
 //    user = unescape(user);
@@ -2099,7 +2285,6 @@ UserManager.prototype = {
     if(isUndef(group)) {
       group='topic';
     }
-
     if (isEmpty(user_link)) {
       return '';
     }
@@ -2152,324 +2337,404 @@ UserManager.prototype = {
 }
 
 function Notifier() {
-  this.Element = document.createElement('div');
-  this.Element.style.cssText = 'position:fixed;left:0;top:0;height:0px;right:0;opacity:0.9;overflow:hidden;'+
-                               'background: url("./graphics/slices/df_slice-14.gif") repeat scroll 0 -6px transparent;'+
-                               '-moz-user-select:none;z-index:999999;cursor:default';
-  this.fadeTimer = null;
-  document.body.appendChild(this.Element);
+  var c=queryXPathNode(document,'/html/body/table/tbody/tr[3]/td[2]/table/tbody/tr/td[6]');
+  if (isEmpty(c))
+    return;
+  previousNode(c).style.paddingRight='12px';
+  c.className="overall_menu";
 
-  this.Close = document.createElement('span');
-  this.Element.appendChild(this.Close);
-  this.Close.style.cssText='height:14px;width:14px;float:right;margin:8px 4px;cursor:pointer;background: url("chrome://global/skin/icons/close.png")';
-  this.Close.innerHTML='&nbsp;';
-  var t=this;
-  addEvent(t.Close, 'click', function() {
-    t.fadeOut();
-  });
+  this.container = document.createElement('div');
+  this.container.className="intbl";
+  c.appendChild(this.container);
 
-  this.List = document.createElement('ul');
-  this.Element.appendChild(this.List);
-  this.List.style.cssText='list-style-type: none;margin:0;padding:0';
+  this.PNs = new Notifier.Field(this,'notmen_PN',
+     '<img src="/graphics/PN.gif" border="0"/>',
+     'PNs');
+  this.PNs.setImageAction('javascript:EM.Notifier.MenuPNDropdown()');
+  this.PNs.setTextAction('javascript:EM.Notifier.MenuPNDropdown()');
+  if (!EM.Settings.GetValue('pagehack','privmenu')) {
+    this.PNs.setWidth('0px');
+  }
 
-  this._popups={};
+  this.EMStuff = new Notifier.Field(this,'notmen_EM',
+     '<img src="/graphics/Group.gif" border="0"/>',
+     'EM');
+  this.EMStuff.setImageAction('javascript:EM.Notifier.AlertDropdown()');
+  this.EMStuff.setTextAction('javascript:EM.Notifier.AlertDropdown()');
+  this._alerts=[];
+  this._alertID=0;
+  this._updateText();
 }
 
-Notifier.REPLACE = 1<<0;
-Notifier.POPUP   = 1<<1;
 
 Notifier.prototype = {
-  fadeIn: function() {
-    this.targetHeight=30;
-    this.fade();
-    this.List.style.visibility='visible';
-  },
-  fadeOut: function() {
-    this.List.style.visibility='hidden';
-    if(this.List.children.length) {
-      this.targetHeight=3;
-      var t=this;
-      t.fadeEvent = addEvent(t.Element, 'mouseover', function() {
-        t.fadeIn();
-        removeEvent(t.Element, 'mouseover',t.fadeEvent);
-      });
-    } else {
-      this.targetHeight=0;
-    }
-    this.fade();
-  },
-  fade: function() {
-    if(this.fadeTimer) {
-      window.clearTimeout(this.fadeTimer);
-      this.fadeTimer = null;
-    }
-    var h = parseInt(this.Element.style.height);
-    var step = 2;
-    if (Math.abs(h-this.targetHeight)<step) {
-      this.Element.style.height = this.targetHeight+'px';
-    } else {
-      this.Element.style.height = (h + Math.sign(this.targetHeight-h)*step)+'px';
-      this.fadeTimer = window.setTimeout('EM.Notifier.fade()', 10);
-    }
-  },
-  notify: function(icon,title,detail,uniquename,options) {
-    if (typeof detail=='string') {
-      var k=document.createElement('div');
-      k.innerHTML=detail;
-      detail=k;
-    }
-    if (isEmpty(options)) {
-      options=0;
-    }
-    if (isEmpty(uniquename)) {
-      uniquename=Math.floor(Math.random()*1E6);
-    }
-    uniquename='em_notification_'+uniquename;
+  MenuPNDropdown: function() {
+    this.PNs.setHighlight(false);
+    var link = this.PNs.field;
+    var bcr = link.getBoundingClientRect();
+    var coords = new Point(bcr.left, bcr.bottom-5);
+    coords.TranslateWindow();
 
-    detail.style.display='none';
-    this.fadeIn();
+    var w = new OverlayWindow(coords.x,coords.y,400,EM.Settings.GetValue('pagehack','privmenu')?187:167,'','em_QPN');
+    w.InitDropdown();
 
-    var f = document.getElementById(uniquename);
-    if (f) {
-      if (options & Notifier.REPLACE) {
-        this.realRemove(f);
-      } else {
-        return;
+    var tbl = w.CreateMenu();
+    w.ContentArea.appendChild(document.createElement('div'));
+    with(w.ContentArea.lastElementChild) {
+      innerHTML='<div class="incell" style="vertical-align:middle;text-align:center">Lade Nachrichten....<br>'+
+                '<br><img src="chrome://global/skin/icons/loading_16.png"></div>';
+      className='intbl';
+      with(style) {
+        height='100px';
+        width='100%';
       }
     }
-    f = document.createElement('li');
-    f.id=uniquename;
-    f.style.cssText='float:left;display:inline;overflow:hidden;height:20px; background-color:#EFEFF4;'+
-                    '-moz-border-radius:5px;padding:3px;margin-left:5px;cursor:pointer';
-    f.innerHTML = '<a><img border="0" style="width: 19px; height: 18px;" src="'+icon+'" alt="'+title+'" class="navbar">'+title+'</a>';
-    var c = document.createElement('img');
-    f.appendChild(c);
-    f.appendChild(detail);
-
-    this.List.appendChild(f);
-    var t=this;
-    addEvent(f, 'click', function() {
-      t.expand(f);
-      t.popup(f);
-    });
-
-    c.style.cssText='height:16px;width:16px; margin-top:2px;float:right;cursor:pointer';
-    c.src=data.close;
-    addEvent(c,'click',function(el,e) {
-      e.preventDefault();
-      e.stopPropagation();
-      t.remove(f.id);
-    });
-
-    this.expand(f);
-    if (options & Notifier.POPUP) {
-      setTimeout(function() {t.popup(f);}, 150);
+    if (EM.Settings.GetValue('pagehack','privmenu')) {
+      tbl.addMenuItem(
+        "/graphics/Portal-PM.gif",
+        "/privmsg.php?folder=inbox",
+        "Private Nachrichten",
+        "<a href=\"/privmsg.php?folder=inbox\">Eingang</a>, "+
+        "<a href=\"/privmsg.php?mode=post\">PN schreiben</a>, "+
+        "<a href=\"/privmsg.php?folder=outbox\">Ausgang</a></a>, "+
+        "<a href=\"/privmsg.php?folder=sentbox\">Gesendete</a>, "+
+        "<a href=\"/privmsg.php?folder=savebox\">Archiv</a>"
+        );
     }
-  },
-  expand: function(e) {
-    this.collapseAll();
-    if (isEmpty(e)) {
-      e = this.List.lastElementChild;
+    var l = EM.PN.inbox.list(0,20);
+    if (EM.Settings.GetValue('pageghack','pndropkeepbottom')) {
+      l.sort(function(a,b) {
+        if (a.unread && !b.unread) return -1;
+        if (!a.unread && b.unread) return 1;
+        return b.date-a.date;
+      });
     }
-    e.style.width='';
+    l.slice(0,EM.Settings.GetValue('pagehack','privmenu')?4:5).reverse().forEach(function(pn) {
+      var d = new Date(1000*pn.date);
+      tbl.addMenuItem(
+        '/templates/subSilver/images/folder'+(pn.unread?'_new':'')+'.gif',
+        '/privmsg.php?folder=inbox&amp;mode=read&amp;p='+pn.id,
+        pn.title,
+        '<span class="intbl">'+
+          '<span class="incell left"> von '+
+            (pn.senderID?'<a class="gensmall" href="profile.php?mode=viewprofile&amp;u='+pn.senderID+'">'+
+             pn.sender+'</a>':pn.sender)+
+            ' am '+d.format("d.m.y")+' um '+d.format("H:i")+'</span>'+
+          '<span class="incell right"><a href="javascript:EM.Notifier.MenuPNView('+pn.id+')"'+
+            ' id="pn_dd_'+pn.id+'">Schnellansicht...</a></span></span>');
+    },this);
+    w.ContentArea.removeChild(w.ContentArea.lastElementChild);
   },
-  collapseAll: function() {
-    for (var i=0; i<this.List.children.length; i++) {
-      var e=this.List.children[i];
-      e.style.width='20px';
-    }
-  },
-  popup: function(e) {
-    var a = e.lastElementChild;
-    var coords = new Point(e.getBoundingClientRect().left, e.getBoundingClientRect().bottom);
+  MenuPNView: function(id) {
+    var link= document.getElementById('pn_dd_'+id);
+    var bcr = link.parentNode.parentNode.getBoundingClientRect();
+    var coords = new Point(bcr.left, bcr.bottom);
     coords.TranslateWindow();
-    var w = new OverlayWindow(coords.x,coords.y,300,180,'','em_notificationpopup');
-    w.InitDropdown();
-    a.style.display='';
-    this._popups[e.id]=w;
 
-    w.ContentArea.appendChild(a);
-    w.OnClose = function(wi) {
-      var el=document.getElementById(e.id);
-      var d=wi.ContentArea.lastElementChild;
-      if (el && el.children.length==2) el.appendChild(d);
-      d.style.display='none';
-    }
+    var w = new OverlayWindow(coords.x,coords.y,442,196,'','em_pnview');
+    w.InitDropdown();
+    var msg = EM.PN.inbox.getMessage(id);
+    w.ContentArea.innerHTML =
+     msg?
+      '<div style="background-color: rgb(225, 230, 236); font-family: Verdana,Arial,Helvetica,sans-serif; margin: 5px;">'+
+      '<div style="border: 1px solid rgb(190, 207, 220); padding: 2px; overflow: auto; margin-top: 4px; height: 180px;" class="postbody">'+
+       '<div style="float: right; position: relative; bottom: 3px;">'+
+       '<a class="gensmall" href="privmsg.php?mode=reply&amp;p='+id+'">Auf Nachricht antworten</a>'+
+       '&nbsp;&nbsp;<a class="gensmall" href="privmsg.php?mode=quote&amp;p='+id+'">Nachricht zitieren</a>'+
+       '</div><hr style="clear:both">'+
+      msg.getContent()+
+      '</div></div>':
+      '<div style="background-color: rgb(225, 230, 236); font-family: Verdana,Arial,Helvetica,sans-serif; margin: 5px;">'+
+      '<div style="border: 1px solid rgb(190, 207, 220); padding: 2px; overflow: auto; margin-top: 4px; height: 180px;" class="postbody">'+
+      'Nachricht nicht gefunden!'+
+      '</div></div>';
   },
-  remove: function(e) {
-    if (typeof e=='string')
-      e=document.getElementById(e);
-    this.realRemove(e);
-    if (!this.List.children.length) {
-      this.fadeOut();
+  AlertDropdown: function() {
+    this.EMStuff.setHighlight(false);
+    if (!this._alerts.length)
+      return;
+    var link = this.EMStuff.field;
+    var bcr = link.getBoundingClientRect();
+    var coords = new Point(bcr.left, bcr.bottom-5);
+    coords.TranslateWindow();
+
+    var w = new OverlayWindow(coords.x,coords.y,328,187,'','em_Alerts');
+    this.window = w;
+    w.InitDropdown();
+
+    var tbl = w.CreateMenu();
+
+    [].concat(this._alerts).reverse().forEach(function(el) {
+      var collhtml='<img border="0" align="top" title="ausblenden" src="./graphics/code_half.gif"'+
+                   ' onclick="EM.Notifier.removeAlert('+el.id+')" style="cursor:pointer">&nbsp;';
+      if (isHTMLElement(el.html)) {
+        var d=document.createElement('span');
+        d.className='gensmall';
+        d.innerHTML=collhtml;
+        d.appendChild(el.html);
+        tbl.addMenuItem(el.icon, el.href, el.title, d);
+      } else {
+        tbl.addMenuItem(el.icon, el.href, el.title, collhtml+el.html);
+      }
+    },this);
+    w.ContentArea.appendChild(tbl);
+    w.ContentArea.style.overflow='auto';
+    w.ContentArea.style.height='187px';
+    var t=this;
+    w.OnClose = function() {
+      t.window=null;
+    };
+  },
+  _updateText: function() {
+    if (this._alerts.length) {
+      this.EMStuff.setText(this._alerts.length+' Meldung'+((this._alerts.length>1)?'en':''));
+      this.EMStuff.setWidth('');
     } else {
-      this.expand();
+      this.EMStuff.setText('EM');
+      this.EMStuff.setWidth('0px');
     }
   },
-  realRemove: function(el) {
-    this._popups[el.id].Close();
-    delete this._popups[el.id];
-    this.List.removeChild(el);
+  addAlert: function(icon, title, href, html) {
+    this._alerts.push({"id":++this._alertID,"icon": icon, "title":title, "href":href, "html":html});
+    this._updateText();
+    this.EMStuff.setHighlight(true);
+    return this._alertID;
+  },
+  removeAlert: function(id) {
+    this._alerts = this._alerts.filter(function(e) {
+      return e.id!==id;
+    },this);
+    this._updateText();
+    if (this.window) {
+      this.window.Close();
+      this.AlertDropdown();
+    }
+  }
+}
+
+Notifier.BLINKTIME=700;
+
+Notifier.Field = function(parent,id,img,text) {
+  var cnt2 = document.createElement('div');
+  cnt2.id=id;
+  cnt2.className="incell";
+  cnt2.style.cssText='vertical-align:middle';
+  parent.container.appendChild(cnt2);
+
+  var cnt = document.createElement('div');
+  cnt2.appendChild(cnt);
+  cnt.style.cssText='overflow:hidden;';
+
+  this.field = document.createElement('div');
+  cnt.appendChild(this.field);
+  this.field.style.cssText='display:table;padding-right:12px';
+
+  this.field.innerHTML='<a href="" class="dfnav">'+img+'</a>';
+
+  this.text = document.createElement('a');
+  this.text.style.cssText='display:table-cell;vertical-align:middle';
+  this.text.className='dfnav';
+  this.field.appendChild(this.text);
+  this.text.innerHTML=text;
+
+  this._hilight=null;
+}
+
+Notifier.Field.prototype = {
+  setImageAction: function(act) {
+    this.field.firstChild.href=act;
+  },
+  setTextAction: function(act) {
+    this.text.href=act;
+  },
+  setText: function(text) {
+    this.text.innerHTML=text;
+  },
+  setWidth: function(w) {
+    this.field.parentNode.style.width=w;
+  },
+  setHighlight: function(hl) {
+    window.clearTimeout(this._hilight);
+    this.field.firstChild.style.visibility='';
+    this._hilight=null;
+    if (hl) {
+      var t = this;
+      this._hilight = window.setTimeout(function() {
+        t.field.firstChild.style.visibility=t.field.firstChild.style.visibility?'':'hidden';
+        t._hilight = window.setTimeout(arguments.callee,Notifier.BLINKTIME);
+      },Notifier.BLINKTIME);
+    }
   }
 }
 
 function ShoutboxReplacer(){
-	//suchString, Replacement, WortGrenzen, CaseSensitive
-	this.replacements = new Array(
-		"benbe", "BenBE",true,false,
-		"cih", "ich",true,false,
-		"mrg", ":mrgreen:",true,false,
-		/(?=:\w{6,7}:):m?r?g?r?e?e?n?:/, ":mrgreen:",true,false,
-		"mrgreen", ":mrgreen:",true,false,
-		":+mrgreen:+", ":mrgreen:",false,false,
-		"FIF", "Fragen in's Forum :mahn:",true,false,
-		"SIWO", "Suche ist weiter oben :mahn:",true,false,
-		//Wall-Hack
-		":wall:", ":autsch:",true,false,
-		//Wikipedia Link support
-		/\[\[(\w\w):(\w+)\|(.*?)\]\]/, "[url=http://$1.wikipedia.org/wiki/$2]$3[/url]",true,false,
-		/\[\[(\w+)\|(.*?)\]\]/, "[url=http://de.wikipedia.org/wiki/$1]$2[/url]",true,false,
-		/\[\[(\w\w):(\w+)\]\]/, "[url=http://$1.wikipedia.org/wiki/$2]$2[/url]",true,false,
-		/\[\[(\w+)\]\]/, "[url=http://de.wikipedia.org/wiki/$1]$1[/url]",true,false,
-		/RFC\s?0*((?!0)\d+)/, "[url=http://www.rfc-editor.org/rfc/rfc$1.txt]RFC $1[/url]",true,false,
-		//Implement /me-Tags ;-)
-		/^\/me\s(.*)$/, "[i][user]" + EM.User.loggedOnUser + "[/user] $1[/i]",false,false,
-		//User-Tag-Verlinkung
-		"@GTA", "[user=\"GTA-Place\"]GTA-Place[/user]",true,false,
-		"@TUFKAPL", "[user=\"Christian S.\"]TUFKAPL[/user]",true,false,
-		"@Wolle", "[user=\"Wolle92\"]Wolle92[/user]",true,false
-		);
-	this.fixedReplacements=this.length();
-	this.allowedTextChars="\\w\\-=@\\(\\)\\[\\]\\{\\}äöüÄÖÜß";
-	this.REText="["+this.allowedTextChars+"]";
-	this.REnoText="[^"+this.allowedTextChars+"]";
-	this.load();
+  //suchString, Replacement, WortGrenzen, CaseSensitive
+  this.replacements = new Array(
+    "benbe", "BenBE",true,false,
+    "cih", "ich",true,false,
+    "mrg", ":mrgreen:",true,false,
+    /(?=:\w{6,7}:):m?r?g?r?e?e?n?:/, ":mrgreen:",true,false,
+    "mrgreen", ":mrgreen:",true,false,
+    ":+mrgreen:+", ":mrgreen:",false,false,
+    "FIF", "Fragen in's Forum :mahn:",true,false,
+    "SIWO", "Suche ist weiter oben :mahn:",true,false,
+    //Wall-Hack
+    ":wall:", ":autsch:",true,false,
+    //Wikipedia Link support
+    /\[\[(\w\w):(\w+)\|(.*?)\]\]/, "[url=http://$1.wikipedia.org/wiki/$2]$3[/url]",true,false,
+    /\[\[(\w+)\|(.*?)\]\]/, "[url=http://de.wikipedia.org/wiki/$1]$2[/url]",true,false,
+    /\[\[(\w\w):(\w+)\]\]/, "[url=http://$1.wikipedia.org/wiki/$2]$2[/url]",true,false,
+    /\[\[(\w+)\]\]/, "[url=http://de.wikipedia.org/wiki/$1]$1[/url]",true,false,
+    /RFC\s?0*((?!0)\d+)/, "[url=http://www.rfc-editor.org/rfc/rfc$1.txt]RFC $1[/url]",true,false,
+    //Implement /me-Tags ;-)
+    /^\/me\s(.*)$/, "[i][user]" + EM.User.loggedOnUser + "[/user] $1[/i]",false,false,
+    /^me\{(.+?)\}/, "[i][user]" + EM.User.loggedOnUser + "[/user] $1[/i]",false,false,
+    //User-Tag-Verlinkung
+    "@GTA", "[user=\"GTA-Place\"]GTA-Place[/user]",true,false,
+    "@TUFKAPL", "[user=\"Christian S.\"]TUFKAPL[/user]",true,false,
+    "@Wolle", "[user=\"Wolle92\"]Wolle92[/user]",true,false
+    );
+  this.fixedReplacements=this.length();
+  this.allowedTextChars="\\w\\-=@\\(\\)\\[\\]\\{\\}äöüÄÖÜß";
+  this.load();
 }
 
 ShoutboxReplacer.prototype = {
-	regexp_toString: function (regE){
-		if(regE instanceof RegExp){
-			var s=regE.toString();
-			s=s.substr(1,s.lastIndexOf('/')-1);
-			return s;
-		}else return regE;
-	},
+  regexp_toString: function (regE){
+    if(regE instanceof RegExp){
+      var s=regE.toString();
+      s=s.substr(1,s.lastIndexOf('/')-1);
+      return s;
+    }else return regE;
+  },
 
-	do_replace: function (str){
-		var regExp,s,replacement;
-		for(var i=0;i<this.length();i++){
-			replacement=this.get(i);
-			if(replacement.length<4) continue;
-			s=this.regexp_toString(replacement[0]);
-			if(replacement[2]) s="(?:^|\\b)"+s+"(?=$|"+this.REnoText+")";
-			if(replacement[3]) regExp=new RegExp(s,"g");
-			else regExp=new RegExp(s,"gi");
-			str=str.replace(regExp,replacement[1]);
-		}
-		//AutoTagging
-		str = str.replace(/(^|\s)([\w\\]?@(?!@))(?:(?:\{(.+?)\})(?=$|[^\}])|([\w\.\-=@\(\)\[\]\{\}äöüÄÖÜß:\/]+[\w\-=@\(\[\]\{\}äöüÄÖÜß]))/g,
-					  function($0,before,cmd,brace,free) {
-						var txt = free?free:brace;
-						var re;
-						if (txt=='') return '';
-						switch(cmd) {
-						  case '@': return before+'[user]'+txt+'[/user]';
-						  case 'G@': return before+'[url=http://www.lmgtfy.com/?q='+encodeURIComponent(txt)+']LMGTFY: '+txt+'[/url]';
-						  case '\\@': return before+'[url=http://ls.em.local/'+encodeLongShout(txt)+']...[/url]';
-						  case 'T@': {
-							if(re = resolveForumSelect("\\d+", txt)) {
-							  return before+"[url=http://www."+re.forum+".de/viewtopic.php?t="+
-									  re.found+"]Topic "+re.found+"[/url]";
-							}
-						  } break;
-						  case 'P@': {
-							if(re = resolveForumSelect("\\d+", txt)) {
-							  return before+"[url=http://www."+re.forum+".de/viewtopic.php?p="+
-									  re.found+"#"+re.found+"]Post "+re.found+"[/url]";
-							}
-						  } break;
-						  case 'F@': {
-							if(re = resolveForumSelect("\\d+", txt)) {
-							  return before+"[url=http://www."+re.forum+".de/viewforum.php?f="+
-									  re.found+"]Forum "+re.found+"[/url]";
-							}
-						  } break;
-						  case 'S@': {
-							if(re = resolveForumSelect(".*?", txt)) {
-							  console.log(re);
-							  return before+"[url=http://www."+re.forum+".de/search.php?search_keywords="+
-									  encodeURIComponent(re.found)+"]"+re.found+"[/url]";
-							}
-						  } break;
-						  case 'K@': {
-							if(txt.indexOf('://')<0) txt='http://'+txt;
-							return before+"[url="+txt+"]*klick*[/url]";
-						  } break;
-						}
-						return $0;
-					  });
+  do_replace: function (str){
+    var regExp,s,replacement,sRepl;
+    var reg=/(^|[^\\])(\\*)\$(\d+)(?=$|\D)/g; //RegExp to increase references
+    for(var i=0;i<this.length();i++){
+      replacement=this.get(i);
+      if(replacement.length<4) continue;
+      s=this.regexp_toString(replacement[0]);
+      sRepl=replacement[1];
+      if(replacement[2]){
+        sRepl="$1"+sRepl.replace(reg,function (str, start, bs, digit, offset, s){
+          if(bs.length % 2==1) return str;//odd count of backslashes -->escape $
+          return start+bs+"$"+(digit*1+1);
+        });
+        var noText=this.allowedTextChars;
+        noText='[^'+noText+']';
+        s="(^|"+noText+")"+s+"(?=$|"+noText+")";
+      }
+      if(replacement[3]) regExp=new RegExp(s,"g");
+      else regExp=new RegExp(s,"gi");
+      for(var j=0;j<2;j++){
+        str=str.replace(regExp,sRepl);
+      }
+    }
+    //AutoTagging
+    str = str.replace(/(^|\s)([\w\\]?@(?!@))(?:(?:\{(.+?)\})(?=$|[^\}])|([\w\.\-=@\(\)\[\]\{\}äöüÄÖÜß:\/]+[\w\-=@\(\[\]\{\}äöüÄÖÜß]))/g,
+            function($0,before,cmd,brace,free) {
+            var txt = free?free:brace;
+            var re;
+            if (txt=='') return '';
+            switch(cmd) {
+              case '@': return before+'[user]'+txt+'[/user]';
+              case 'G@': return before+'[url=http://www.lmgtfy.com/?q='+encodeURIComponent(txt)+']LMGTFY: '+txt+'[/url]';
+              case '\\@': return before+'[url=http://ls.em.local/'+encodeLongShout(txt)+']...[/url]';
+              case 'T@': {
+              if(re = resolveForumSelect("\\d+", txt)) {
+                return before+"[url=http://www."+re.forum+".de/viewtopic.php?t="+
+                    re.found+"]Topic "+re.found+"[/url]";
+              }
+              } break;
+              case 'P@': {
+              if(re = resolveForumSelect("\\d+", txt)) {
+                return before+"[url=http://www."+re.forum+".de/viewtopic.php?p="+
+                    re.found+"#"+re.found+"]Post "+re.found+"[/url]";
+              }
+              } break;
+              case 'F@': {
+              if(re = resolveForumSelect("\\d+", txt)) {
+                return before+"[url=http://www."+re.forum+".de/viewforum.php?f="+
+                    re.found+"]Forum "+re.found+"[/url]";
+              }
+              } break;
+              case 'S@': {
+              if(re = resolveForumSelect(".*?", txt)) {
+                console.log(re);
+                return before+"[url=http://www."+re.forum+".de/search.php?search_keywords="+
+                    encodeURIComponent(re.found)+"]"+re.found+"[/url]";
+              }
+              } break;
+              case 'K@': {
+              if(txt.indexOf('://')<0) txt='http://'+txt;
+              return before+"[url="+txt+"]*klick*[/url]";
+              } break;
+            }
+            return $0;
+            });
 
-		str = str.replace(/@@/g, '@');
-		return str;
-	},
+    str = str.replace(/@@/g, '@');
+    return str;
+  },
 
-	getSearchString: function (index){
-		if(index<0 || index>=this.length()) return "";
-		return this.regexp_toString(this.replacements[index*4]);
-	},
+  getSearchString: function (index){
+    if(index<0 || index>=this.length()) return "";
+    return this.regexp_toString(this.replacements[index*4]);
+  },
 
-	findSearchString: function (sSearch){
-		sSearch=this.regexp_toString(sSearch);
-		for(var i=0; i<this.length(); i++){
-			if(this.getSearchString(i)==sSearch) return i;
-		}
-		return -1;
-	},
+  findSearchString: function (sSearch){
+    sSearch=this.regexp_toString(sSearch);
+    for(var i=0; i<this.length(); i++){
+      if(this.getSearchString(i)==sSearch) return i;
+    }
+    return -1;
+  },
 
-	length: function (){
-		return Math.floor(this.replacements.length/4);
-	},
+  length: function (){
+    return Math.floor(this.replacements.length/4);
+  },
 
-	get: function (index){
-		if(index<0 || index>=this.length()) return new Array();
-		index*=4;
-		return this.replacements.slice(index,index+4);
-	},
+  get: function (index){
+    if(index<0 || index>=this.length()) return new Array();
+    index*=4;
+    return this.replacements.slice(index,index+4);
+  },
 
-	add: function (sSearch,sReplace,useWordbounds,caseSensitive,doSave){
-		if(isUndef(sSearch) || isUndef(sReplace)) return;
-		var index=this.findSearchString(sSearch);
-		if(index<0){
-			//add new
-			index=this.length();
-		}else if(index<this.fixedReplacements) return; //Don't overwrite standart
-		index*=4;
-		this.replacements[index]=sSearch;
-		this.replacements[index+1]=sReplace;
-		this.replacements[index+2]=(useWordbounds!=false); //standart is true
-		this.replacements[index+3]=(caseSensitive==true); //standart is false
-		if(doSave!=false) this.save();
-	},
+  add: function (sSearch,sReplace,useWordbounds,caseSensitive,doSave){
+    if(isUndef(sSearch) || isUndef(sReplace)) return;
+    var index=this.findSearchString(sSearch);
+    if(index<0){
+      //add new
+      index=this.length();
+    }else if(index<this.fixedReplacements) return; //Don't overwrite standart
+    index*=4;
+    this.replacements[index]=sSearch;
+    this.replacements[index+1]=sReplace;
+    this.replacements[index+2]=(useWordbounds!=false); //standart is true
+    this.replacements[index+3]=(caseSensitive==true); //standart is false
+    if(doSave!=false) this.save();
+  },
 
-	remove: function (sSearch){
-		var index=this.findSearchString(sSearch);
-		if(index>=0){
-			this.replacements.splice(index*4,4);
-			this.save();
-		}
-	},
+  remove: function (sSearch){
+    var index=this.findSearchString(sSearch);
+    if(index>=0){
+      this.replacements.splice(index*4,4);
+      this.save();
+    }
+  },
 
-	load: function (){
-		var newEntries=EM.Settings.load_field('sb-replacements');
-		if(isUndef(newEntries)) return;
-		for(var i=0; i<newEntries.length-3; i+=4){
-			this.add(newEntries[i],newEntries[i+1],newEntries[i+2],newEntries[i+3],false);
-		}
-	},
+  load: function (){
+    var newEntries=EM.Settings.load_field('sb-replacements');
+    if(isUndef(newEntries)) return;
+    for(var i=0; i<newEntries.length-3; i+=4){
+      this.add(newEntries[i],newEntries[i+1],newEntries[i+2],newEntries[i+3],false);
+    }
+  },
 
-	save: function (){
-		EM.Settings.store_field('sb-replacements',this.replacements);
-	}
+  save: function (){
+    EM.Settings.store_field('sb-replacements',this.replacements);
+  }
 }
 
 function ShoutboxControls() {
@@ -2567,7 +2832,7 @@ function ShoutboxControls() {
     this.btnUpdate.value='Aktuellste zeigen';
     this.btnUpdate.setAttribute('onclick', 'EM.Shouts.ev_sb_update()');
 
-    this.contButtons = document.createElement('<div>');
+    this.contButtons = document.createElement('div');
     this.btnUpdate.parentNode.appendChild(this.contButtons);
 
     this.btnNewer = this.btnUpdate.cloneNode(false);
@@ -2900,6 +3165,23 @@ function ShoutboxWindow() {
     shout.insertBefore(cnt, shout.firstChild);
     shout.insertBefore(div, shout.firstChild);
 
+    var user_list = EM.Settings.GetValue('sb','user_killfile');
+
+    if (user_list.some(function (item) { return item.equals(shout_user); })) {
+      cnt.style.cssText="display:none";
+      a.style.cssText="padding-left:1em;color:#777777";
+      (function(cnt,a) {
+        addEvent(a,'click',function(d,e) {
+          cnt.style.cssText="";
+          a.style.paddingLeft="";
+          if(EM.Settings.GetValue('sb','boldUser')) {
+            a.style.fontWeight="bold";
+          }
+          e.preventDefault();
+        });
+      })(cnt,a);
+    }
+
     var tools = null;
     var tool_html = '';
     if(anek_active) {
@@ -2915,11 +3197,13 @@ function ShoutboxWindow() {
     if(EM.Settings.GetValue('sb','highlight_stalk')>0) {
       var l_stalk = EM.User.userlinkButtonFromLink(document, shout_user, EM.User.ev_stalk, 'sb', 'stalk');
     }
+    var l_kill = EM.User.userlinkButtonFromLink(document, shout_user, EM.User.ev_sbkill, 'sb', 'killfile');
     if(tool_html!='') {
       tools = document.createElement('span');
       tools.className+=' incell right';
       tools.innerHTML = tool_html;
       if(l_stalk) tools.appendChild(l_stalk);
+      tools.appendChild(l_kill);
       div.appendChild(tools);
     }
   };
@@ -3144,10 +3428,10 @@ function Pagehacks() {
     this.AddAnsweredLinks();
   }
   if(/\bforum_(\S+_)?\d+\.html|viewforum\.php/.test(Location)) {
-	if(EM.Buttons.mainTable){
-		var resTable = queryXPathNode(EM.Buttons.mainTable, "tbody/tr[2]/td[1]/div/form/table");
-		this.TLColourize(resTable, "forum");
-	}
+    if(EM.Buttons.mainTable){
+      var resTable = queryXPathNode(EM.Buttons.mainTable, "tbody/tr[2]/td[1]/div/form/table");
+      this.TLColourize(resTable, "forum");
+    }
   }
   if(EM.Settings.GetValue('ui','addsid')) {
     this.AddLinkSIDs();
@@ -3155,8 +3439,11 @@ function Pagehacks() {
   if(1*EM.Settings.GetValue('pageghack','pnautocheck')) {
     var min = EM.Settings.GetValue('pageghack','pnautocheck');
     if(1 > 1 * min) min = 1;
+    PNAPI.LIFETIME = min * 60 - 30; // 30s less => definitely expired on next regular check
     window.setInterval('EM.Pagehacks.checkPMAuto()', min * 60000);
   }
+  // do a first check, regardless of when regular checks will occur (if at all)
+  window.setTimeout('EM.Pagehacks.checkPMAuto()', 30*1000);
 }
 
 Pagehacks.prototype = {
@@ -3180,35 +3467,12 @@ Pagehacks.prototype = {
   },
 
   checkPMAuto: function() {
-    var l = EM.PN.getUnread('inbox',10);
+    var l = EM.PN.getUnread('inbox',20);
     if (l.length) {
       var s=l.length==1?'Eine neue PN':l.length+' neue PNs';
-      var div = document.createElement('div');
-      var tbl = document.createElement('table');
-      div.appendChild(tbl);
-      div.style.cssText='height:180px;overflow:auto';
-      tbl.className='forumline';
-      tbl.style.cssText='width:100%';
-      tbl.setAttribute('cellspacing',1);
-      tbl.setAttribute('cellpadding',4);
-      var r=1;
-      l.forEach(function(pn) {
-        with (tbl.insertRow(-1)) {
-          with(insertCell(-1)) {
-            className='row'+r;
-            var d = new Date(1000*pn.date);
-            innerHTML='<span class="topictitle"><a href="privmsg.php?folder=inbox&amp;mode=read&amp;p='+pn.id+
-                       '" class="topictitle" target="_blank">'+pn.title+'</a></span><span class="gensmall"><br>von '+
-                       '<span class="name" style="font-size: 10px;">'+
-                       (pn.senderID?'<a class="gensmall" href="profile.php?mode=viewprofile&amp;u='+pn.senderID+'">'+
-                       pn.sender+'</a>':pn.sender)+
-                       ' am '+d.format("d.m.y")+' um '+d.format("H:i")+
-                       '</span></span>';
-          }
-        }
-        r=r==1?2:1;
-      },this);
-      EM.Notifier.notify('/graphics/Portal-PM.gif',s,div,'pnarrived',Notifier.REPLACE|Notifier.POPUP);
+      EM.Notifier.PNs.setText(s);
+      EM.Notifier.PNs.setWidth('');
+      EM.Notifier.PNs.setHighlight(true);
     }
   },
 
@@ -3315,7 +3579,7 @@ Pagehacks.prototype = {
   },
 
   TLColourize: function (tltable, isForum) {
-	if(!tltable) return;
+    if(!tltable) return;
     var entries = queryXPathNodeSet(tltable,"./tbody/tr");
     var col_ofs = (isForum)?1:0;
     var singlePostMode=false;;
@@ -3328,11 +3592,11 @@ Pagehacks.prototype = {
       if (cols.length<2){
         if(i==1 && cols[0].className=='catHead'){ // looks like single post mode
           singlePostMode=true;
-		}
+        }
         continue;
-     }else if(singlePostMode){
+      }else if(singlePostMode){
         var tuser_l = queryXPathNode(row,"./td[1]/span[1]/b[1]/a[1]");
-	 }else{
+      }else{
         var tuser_l = queryXPathNode(row,"./td[2]/span[2]/span[1]/a[1]");
         if (isForum) {
           var puser_l = queryXPathNode(row,"./td[5]/a[2]");
@@ -3346,6 +3610,11 @@ Pagehacks.prototype = {
         var t_cssClassAdd = EM.User.helper_getHLStyleByUserLink(tuser_l);
       }else{
         var t_cssClassAdd = "";
+        tuser_l = queryXPathNode(row,"./td[2]/span[2]/span[1]");
+        if(!tuser_l){
+          console.log('No user link');
+          continue;
+        }
       }
       if(!singlePostMode){
         var p_cssClassAdd = EM.User.helper_getHLStyleByUserLink(puser_l);
@@ -3402,60 +3671,60 @@ Pagehacks.prototype = {
       var std = document.createElement('span');
       std.className = 'gensmall incell right';
 
-	  var strUser=queryXPathNode(tuser_l, './span').textContent;
+      var strUser=queryXPathNode(tuser_l, './span').textContent;
 
       var isSelf = tuser_l && (strUser == EM.User.loggedOnUser);
 
       if(singlePostMode){
-		i++;
-		var it_span_user = document.createElement('span');
-		it_span_user.className = 'incell left';
-		it_span_user.innerHTML=cols[0].innerHTML;
-		cols[0].innerHTML='';
-		div.appendChild(it_span_user);
-		if(!isSelf){
-			if(EM.Settings.GetValue('topic','button_stalk')) {
-			  var l_stalk = EM.User.userlinkButtonFromLink(document, strUser, EM.User.ev_stalk_t, 'topic', 'stalk');
-			  std.appendChild(l_stalk);
-			}
-			if(EM.Settings.GetValue('topic','button_killfile')) {
-			  var l_kill = EM.User.userlinkButtonFromLink(document, strUser, EM.User.ev_kill, 'topic', 'killfile');
-			  std.appendChild(l_kill);
-			}
-		}
-	  }else{
-		  var img = queryXPathNode(cols[0], './/img');
+        i++;
+        var it_span_user = document.createElement('span');
+        it_span_user.className = 'incell left';
+        it_span_user.innerHTML=cols[0].innerHTML;
+        cols[0].innerHTML='';
+        div.appendChild(it_span_user);
+        if(!isSelf){
+          if(EM.Settings.GetValue('topic','button_stalk')) {
+            var l_stalk = EM.User.userlinkButtonFromLink(document, strUser, EM.User.ev_stalk_t, 'topic', 'stalk');
+            std.appendChild(l_stalk);
+          }
+          if(EM.Settings.GetValue('topic','button_killfile')) {
+            var l_kill = EM.User.userlinkButtonFromLink(document, strUser, EM.User.ev_kill, 'topic', 'killfile');
+            std.appendChild(l_kill);
+          }
+        }
+      }else{
+        var img = queryXPathNode(cols[0], './/img');
 
-		  var cnt = document.createElement('span');
-		  cnt.className = 'incell left';
-		  cnt.innerHTML = cols[0].innerHTML;
-		  cols[0].innerHTML = '';
+        var cnt = document.createElement('span');
+        cnt.className = 'incell left';
+        cnt.innerHTML = cols[0].innerHTML;
+        cols[0].innerHTML = '';
 
-		  //Fix for a bug in TUFKAPL source
-		  cnt.id = cols[0].id;
-		  cols[0].id = '';
+        //Fix for a bug in TUFKAPL source
+        cnt.id = cols[0].id;
+        cols[0].id = '';
 
-		  div.appendChild(cnt);
+        div.appendChild(cnt);
 
-		  if(img && isSelf && !img.src.match(/answered/) && !img.src.match(/lock/)) {
-			var topicid = img.id.match(/^folderFor(\d+)$/);
-			var std_a = document.createElement('a');
-			std_a.innerHTML = '&#x2714;';
-			std_a.id = 'answerLink'+topicid[1];
-			std_a.setAttribute("onclick",'EM.Pagehacks.SetAnswered("'+topicid[1]+'"); return false;');
-			std_a.style.cssText+=' cursor:pointer;';
-			std.appendChild(std_a);
-		  }
-		  var std_br = document.createElement('br');
-		  std.appendChild(std_br);
-		  std.appendChild(std_own);
+        if(img && isSelf && !img.src.match(/answered/) && !img.src.match(/lock/)) {
+          var topicid = img.id.match(/^folderFor(\d+)$/);
+          var std_a = document.createElement('a');
+          std_a.innerHTML = '&#x2714;';
+          std_a.id = 'answerLink'+topicid[1];
+          std_a.setAttribute("onclick",'EM.Pagehacks.SetAnswered("'+topicid[1]+'"); return false;');
+          std_a.style.cssText+=' cursor:pointer;';
+          std.appendChild(std_a);
+        }
+        var std_br = document.createElement('br');
+        std.appendChild(std_br);
+        std.appendChild(std_own);
 
-		  std.style.cssText+=' vertical-align:top;';
-		  std.style.cssText+=' min-width:1.1em;';
-		  std.style.cssText+=' min-height:23px;';
+        std.style.cssText+=' vertical-align:top;';
+        std.style.cssText+=' min-width:1.1em;';
+        std.style.cssText+=' min-height:23px;';
 
-	  }
-	  div.appendChild(std);
+      }
+      div.appendChild(std);
 
       cols[0].appendChild(div);
     }
@@ -3720,7 +3989,7 @@ Pagehacks.prototype = {
   AddQuickProfileMenu: function() {
     var link = queryXPathNode(unsafeWindow.document, "/html/body/table/tbody/tr[3]/td[2]/table/tbody/tr/td/a[img][1]");
     var linkText = queryXPathNode(unsafeWindow.document, "/html/body/table/tbody/tr[3]/td[2]/table/tbody/tr/td[3]/a[1]");
-	if(link==null) return;
+    if(link==null) return;
     if('Meine Ecke' == linkText.textContent) {
       link.setAttribute('onclick','return EM.Pagehacks.QuickProfileMenu()');
     }
@@ -3728,7 +3997,7 @@ Pagehacks.prototype = {
 
   AddQuickLoginMenu: function() {
     var link = queryXPathNode(unsafeWindow.document, "/html/body/table/tbody/tr[3]/td[2]/table/tbody/tr/td[4]/a[img][1]");
-	if(link==null) return;
+    if(link==null) return;
     link.setAttribute('onclick','return EM.Pagehacks.QuickLoginMenu()');
   },
 
@@ -3751,12 +4020,13 @@ Pagehacks.prototype = {
     var coords = new Point(bcr.left, bcr.bottom+10);
     coords.TranslateWindow();
 
-    var w = new OverlayWindow(coords.x,coords.y,328,187,'','em_QPM');
+    var w = new OverlayWindow(coords.x,coords.y,328,EM.Settings.GetValue('pagehack','privmenu')?148:187,'','em_QPM');
     w.InitDropdown();
 
     var tbl = w.CreateMenu();
 
-    tbl.addMenuItem(
+    if (!EM.Settings.GetValue('pagehack','privmenu')) {
+      tbl.addMenuItem(
         "/graphics/Portal-PM.gif",
         "/privmsg.php?folder=inbox",
         "Private Nachrichten",
@@ -3766,6 +4036,7 @@ Pagehacks.prototype = {
         "<a href=\"/privmsg.php?folder=sentbox\">Gesendete</a>, "+
         "<a href=\"/privmsg.php?folder=savebox\">Archiv</a>"
         );
+    }
     tbl.addMenuItem(
         "/graphics/Drafts.gif",
         "/drafts.php",
@@ -3974,6 +4245,7 @@ Pagehacks.prototype = {
 
   AddBetaLinks: function() {
     var table = queryXPathNode(unsafeWindow.document, "/html/body/table/tbody/tr/td[4]/table");
+    if (!table) return;
     table.style.cssText = '';
     RegExp.prototype.replace = function(str,rep) {
       return str.replace(this,rep);
@@ -4039,7 +4311,7 @@ Pagehacks.prototype = {
         break;
       }
     }
-	  if(tbl==null) return;
+    if(tbl==null) return;
     var tr = queryXPathNodeSet(tbl, "tbody/tr");
 
     var user_killfile = EM.Settings.GetValue('topic','user_killfile');
@@ -4053,10 +4325,15 @@ Pagehacks.prototype = {
       if(!linkUser){
         linkUser=tdProfile;
         var spanUser = queryXPathNode(linkUser, "span[1]/b");
+        if(!spanUser) spanUser = queryXPathNode(linkUser, "b[1]/span[1]");
       }else{
         var spanUser = queryXPathNode(linkUser, "span[1]");
       }
-  	  var idPost = queryXPathNode(tdProfile, "a[1]");
+      if(!spanUser){
+        console.log("Error on higlighter");
+        continue;
+      }
+      var idPost = queryXPathNode(tdProfile, "a[1]");
       if(idPost) idPost = idPost.name;
       else{
         idPost=i;
@@ -4065,10 +4342,9 @@ Pagehacks.prototype = {
         tdProfile.insertBefore(newA,tdProfile.firstChild);
       }
 
-
       var strUser = spanUser.textContent;
       var isSelf=strUser==EM.User.loggedOnUser
-	    var cssClassAdd = EM.User.helper_getHLStyleByUserLink(linkUser);
+      var cssClassAdd = EM.User.helper_getHLStyleByUserLink(linkUser);
 
 
       if (!isSelf && kftype && user_killfile.some(
@@ -4276,13 +4552,13 @@ function UpdateMonkey() {
     this.running = false;
 
     this.settings = {
-		enabled: EM.Settings.GetValue('update','enable'),
-		installed: EM.Settings.GetValue('update','installed'),
-		updateType: EM.Settings.GetValue('update','update_type'),
-		updateSource: EM.Settings.GetValue('update','source_repo'),
-		updateBranch: EM.Settings.GetValue('update','source_branch'),
-		updateTimeout: EM.Settings.GetValue('update','check_every')
-	};
+      enabled: EM.Settings.GetValue('update','enable'),
+      installed: EM.Settings.GetValue('update','installed'),
+      updateType: EM.Settings.GetValue('update','update_type'),
+      updateSource: EM.Settings.GetValue('update','source_repo'),
+      updateBranch: EM.Settings.GetValue('update','source_branch'),
+      updateTimeout: EM.Settings.GetValue('update','check_every')
+    };
 
     this.ghapi = {
         parent: this,
@@ -4328,6 +4604,8 @@ function UpdateMonkey() {
             this.request('GET', 'http://github.com/api/v2/json/commits/show/'+user+'/'+repo+'/'+commit,null,null,cb,cbdata);
         }
     };
+
+    EM.Settings.onSettingChanged.push(this.evSettingChanged);
 }
 UpdateMonkey.prototype.updateEngine = function(stage, success, response) {}; //Telling JS something it doesn't believe me without telling it directly
 UpdateMonkey.prototype = {
@@ -4423,7 +4701,7 @@ UpdateMonkey.prototype = {
         );
     },
 
-    updateBranches: function(user,repo) {
+    updateBranches: function(user,repo,callback) {
         console.log('branches:'+user+','+repo);
         var obj = this;
         this.actionPush(
@@ -4461,6 +4739,8 @@ UpdateMonkey.prototype = {
                 for(var branch in branches) {
                     obj.updateCommit(a.data.user,a.data.repo,branches[branch]);
                 }
+                if (!isEmpty(callback))
+                  callback(obj, branches);
                 obj.actionDone(a);
             },
             {
@@ -4517,7 +4797,7 @@ UpdateMonkey.prototype = {
         );
     },
 
-    updateNetwork: function() {
+    updateNetwork: function(callback) {
         console.log('networks');
         var obj = this;
         this.actionPush(
@@ -4551,12 +4831,16 @@ UpdateMonkey.prototype = {
                 return true;
             },
             function(a) {
-                obj.network.forEach(
-                    function(e) {
-                        obj.updateBranches(e.owner,e.name);
-                        obj.updateTags(e.owner,e.name);
-                    }
-                );
+                var nodef = false;
+                if (!isEmpty(callback))
+                  nodef = callback(obj, obj.network)===false; // require false, undef would be falsy too
+                if (!nodef)
+                  obj.network.forEach(
+                      function(e) {
+                          obj.updateBranches(e.owner,e.name);
+                          obj.updateTags(e.owner,e.name);
+                      }
+                  );
                 obj.actionDone(a);
             },
             null
@@ -4568,98 +4852,98 @@ UpdateMonkey.prototype = {
         var obj = this;
         this.actionPush(
             function(a) {
-            	//Check the cache for the various commits we need ...
-				var mode = 1*a.data.updateType;
-				var repo = a.data.updateSource;
-				var branch = a.data.updateBranch;
+              //Check the cache for the various commits we need ...
+              var mode = 1*a.data.updateType;
+              var repo = a.data.updateSource;
+              var branch = a.data.updateBranch;
 
-				if(!mode) {
-					repo = 'martok#edgemonkey';
-				}
-				if(2 > mode) {
-					branch = 'master';
-				}
+              if(!mode) {
+                repo = 'martok#edgemonkey';
+              }
+              if(2 > mode) {
+                branch = 'master';
+              }
 
-				var commit = null;
-				var c = null;
-				switch(mode) {
-					case 0:		//Only use tags
-						var mostcurrent = new Date(0);
-		                for(var tag in obj.tags[repo]) {
-		                	c = obj.tags[repo][tag];
-		                	var rev_date = new Date();
-		                	rev_date.setISO8601(obj.commits[c].committed_date);
-		                    if(rev_date > mostcurrent) {
-		                    	commit = c;
-		                    	mostcurrent = rev_date;
-		                    }
-		                }
-						break;
-					case 1:		//Use the master branch
-					case 2:		//Use a custom branch
-						c = obj.branches[repo][branch];
-	                    if(isEmpty(obj.commits[c])) {
-	                    	break;
-	                    }
-	                    commit = c;
-						break;
-					default:
-						obj.failMonkeyMessage('Unknown Update mode!');
-						return;
-				}
+              var commit = null;
+              var c = null;
+              switch(mode) {
+                case 0:    //Only use tags
+                  var mostcurrent = new Date(0);
+                          for(var tag in obj.tags[repo]) {
+                            c = obj.tags[repo][tag];
+                            var rev_date = new Date();
+                            rev_date.setISO8601(obj.commits[c].committed_date);
+                              if(rev_date > mostcurrent) {
+                                commit = c;
+                                mostcurrent = rev_date;
+                              }
+                          }
+                  break;
+                case 1:    //Use the master branch
+                case 2:    //Use a custom branch
+                  c = obj.branches[repo][branch];
+                            if(isEmpty(obj.commits[c])) {
+                              break;
+                            }
+                            commit = c;
+                  break;
+                default:
+                  obj.failMonkeyMessage('Unknown Update mode!');
+                  return;
+              }
 
-				if(!isEmpty(commit)) {
-					console.log('OLD: ' + a.data.installed);
-					console.log('NEW: ' + commit);
-					if(commit.trim() != (''+a.data.installed).trim()) {
-						console.log('UpdateMonkey haz njuz!');
-						ur = repo.match(/^([^#]+)#([^#]+)$/);
-						EM.Cache.put('updatemonkey.networks', 'update',
-							{user:ur[1], repo:ur[2], branch:branch, tag:tag, commit:commit, mode:mode}, obj.settings.updateTimeout);
-						obj.notifyUpdate(ur[1], ur[2], branch, tag, commit, mode);
-					}
-				}
+              if(!isEmpty(commit)) {
+                console.log('OLD: ' + a.data.installed);
+                console.log('NEW: ' + commit);
+                if(commit.trim() != (''+a.data.installed).trim()) {
+                  console.log('UpdateMonkey haz njuz!');
+                  ur = repo.match(/^([^#]+)#([^#]+)$/);
+                  EM.Cache.put('updatemonkey.networks', 'update',
+                    {user:ur[1], repo:ur[2], branch:branch, tag:tag, commit:commit, mode:mode}, obj.settings.updateTimeout);
+                  obj.notifyUpdate(ur[1], ur[2], branch, tag, commit, mode);
+                }
+              }
 
-                a.done(a);
+              a.done(a);
             },
             function(a) {
-            	//Check the cache for the various commits we need ...
-				var mode = 1*a.data.updateType;
-				var repo = a.data.updateSource;
-				var branch = a.data.updateBranch;
+              //Check the cache for the various commits we need ...
+              var mode = 1*a.data.updateType;
+              var repo = a.data.updateSource;
+              var branch = a.data.updateBranch;
 
-				if(!mode) {
-					repo = 'martok#edgemonkey';
-				}
-				if(2 > mode) {
-					branch = 'master';
-				}
+              if(!mode) {
+                repo = 'martok#edgemonkey';
+              }
+              if(2 > mode) {
+                branch = 'master';
+              }
 
-				switch(mode) {
-					case 0:		//Only use tags
-						if(isEmpty(obj.tags[repo])) {
-							return false;
-						}
-		                for(var tag in obj.tags[repo]) {
-		                    if(isEmpty(obj.commits[obj.tags[repo][tag]])) {
-		                    	return false;
-		                    }
-		                }
-						break;
-					case 1:		//Use the master branch
-					case 2:		//Use a custom branch
-						if(isEmpty(obj.branches[repo])) {
-							return false;
-						}
-	                    if(isEmpty(obj.commits[obj.branches[repo][branch]])) {
-	                    	return false;
-	                    }
-						break;
-					default:
-						obj.failMonkeyMessage('Unknown Update mode!');
-						return true;
-				}
-                return true;
+              switch(mode) {
+                case 0:    //Only use tags
+                  if(isEmpty(obj.tags[repo])) {
+                    return false;
+                  }
+                          for(var tag in obj.tags[repo]) {
+                              if(isEmpty(obj.commits[obj.tags[repo][tag]])) {
+                                return false;
+                              }
+                          }
+                  break;
+                case 1:    //Use the master branch
+                case 2:    //Use a custom branch
+                  if(isEmpty(obj.branches[repo])) {
+                    return false;
+                  }
+                            if(isEmpty(obj.commits[obj.branches[repo][branch]])) {
+                              return false;
+                            }
+                  break;
+                default:
+                  obj.failMonkeyMessage('Unknown Update mode!');
+                  return true;
+              }
+              return true;
             },
             function(a) {
                 obj.actionDone(a);
@@ -4669,50 +4953,56 @@ UpdateMonkey.prototype = {
     },
 
     checkUpdate: function() {
-    	if(!this.settings.enabled) {
-    		return true;
-    	}
-		var update = EM.Cache.get('updatemonkey.networks', 'update');
-		if(update.current) {
-			var u = update.data;
-			this.notifyUpdate(u.user, u.repo,u.branch,u.tag,u.commit,u.mode);
-			return;
-		}
+      if(!this.settings.enabled) {
+        return true;
+      }
+      var update = EM.Cache.get('updatemonkey.networks', 'update');
+      if(update.current) {
+        var u = update.data;
+        this.notifyUpdate(u.user, u.repo,u.branch,u.tag,u.commit,u.mode);
+        return;
+      }
 
-        this.updateNetwork();
-        this.checkUpdateAvail();
+      this.updateNetwork();
+      this.checkUpdateAvail();
     },
 
     notifyUpdate: function(user,repo,branch,tag,commit,mode) {
-    	var e = document.createElement('div');
-    	e.innerHTML = '<div class="dfnav">Neues Update</div><br/>'+
-    		'<div class="gensmall">Ein neues Updats f&uuml;r EdgeMonkey wurde gefunden.</div>' +
-    		'<table>'+
-    		'<tr><td><span class="gensmall">Benutzer:</span></td><td><span class="gensmall">' + user + '</span></td></tr>' +
-    		'<tr><td><span class="gensmall">Repository:</span></td><td><span class="gensmall">' + repo + '</span></td></tr>' +
-    		'<tr><td><span class="gensmall">Branch:</span></td><td><span class="gensmall">' + branch + '</span></td></tr>' +
-    		(isEmpty(tag)?'':'<tr><td><span class="gensmall">Tag:</span></td><td><span class="gensmall">' + tag + '</span></td></tr>' )+
-    		'<tr><td><span class="gensmall">Commit:</span></td><td><span class="gensmall"><a href="http://github.com/'+user+'/'+repo+'/commit/'+commit+'/" target="_blank">' + commit.substr(0,16) + '</a></span></td></tr>' +
-    		'</table><br/>' +
-    		'<div class="dfnav"><a href="http://github.com/'+user+'/'+repo+'/raw/'+commit+'/edgemonkey.user.js" onClick="return EM.Updater.installUpdate(\''+commit+'\');">Installation der neuen Version</a></div>'+
-    		'<div class="gensmall">(Bitte die Sicherheitsmeldung von GreaseMonkey mit OK best&auml;tigen)</div>';
+      var e = document.createElement('div');
+      e.innerHTML =
+        '<div class="gensmall">Ein neues Update von EdgeMonkey wurde gefunden.</div>' +
+        '<table>'+
+        '<tr><td><span class="gensmall">Benutzer:</span></td><td><span class="gensmall">' + user + '</span></td></tr>' +
+        '<tr><td><span class="gensmall">Repository:</span></td><td><span class="gensmall">' + repo + '</span></td></tr>' +
+        '<tr><td><span class="gensmall">Branch:</span></td><td><span class="gensmall">' + branch + '</span></td></tr>' +
+        (isEmpty(tag)?'':'<tr><td><span class="gensmall">Tag:</span></td><td><span class="gensmall">' + tag + '</span></td></tr>' )+
+        '<tr><td><span class="gensmall">Commit:</span></td><td><span class="gensmall"><a href="http://github.com/'+user+'/'+repo+'/commit/'+commit+'/" target="_blank">' + commit.substr(0,16) + '</a></span></td></tr>' +
+        '</table><br/>' +
+        '<div class="dfnav"><a href="http://github.com/'+user+'/'+repo+'/raw/'+commit+'/edgemonkey.user.js" onClick="return EM.Updater.installUpdate(\''+commit+'\');">Installation der neuen Version</a></div>'+
+        '<div class="gensmall">(Bitte die Sicherheitsmeldung von GreaseMonkey mit OK best&auml;tigen)</div>';
 
-		EM.Notifier.notify(
-			'/graphics/Profil-Sidebar.gif',
-			'Neues EM-Update',
-			e,
-			'updatemonkey_haz_update',
-			Notifier.REPLACE
-		);
-
+      EM.Notifier.addAlert(
+        '/graphics/Profil-Sidebar.gif',
+        'Neues EM-Update',
+        'http://github.com/'+user+'/'+repo+'/commit/'+commit+'/',
+        e
+      );
     },
 
     installUpdate: function(commit) {
-    	console.log('install:'+commit);
-		EM.Settings.SetValue('update','installed',commit);
-		Settings_SaveToDisk();
-		EM.Cache.touch('updatemonkey.networks', 'update', -1);
-		return true;
+      console.log('install:'+commit);
+      EM.Settings.SetValue('update','installed',commit);
+      Settings_SaveToDisk();
+      EM.Cache.touch('updatemonkey.networks', 'update', -1);
+      return true;
+    },
+
+    evSettingChanged: function(data) {
+      if (!(isUndef(data.Modified['update.update_type']) &&
+          isUndef(data.Modified['update.source_repo']) &&
+          isUndef(data.Modified['update.source_branch']))) {
+        EM.Cache.touch('updatemonkey.networks', 'update', -1);
+      }
     }
 }
 
@@ -4790,16 +5080,22 @@ function initEdgeApe() {
   if(isEmpty(window.opener) && (window.parent==window) )
   {
     upgradeSettings();
+    setTimeout(function() {checkUpdate()}, 100);
   }
 
-  if (Location.match(/shoutbox_view.php/)) {
+  if (Location.match(/shoutbox_view\.php/)) {
     if (EM.User.loggedOnUser) {
       EM.ShoutWin = new ShoutboxWindow();
     }
   }
   else
+  if (Location.match(/posting\.php\?mode=topicreview/)) {
+    EM.Pagehacks = new Pagehacks();
+  }
+  else
   {
     EM.Buttons = new ButtonBar();
+    EM.Notifier = new Notifier();
 
     with(EM.Buttons) {
       addButton('/graphics/Profil-Sidebar.gif','Einstellungen','EM.Settings.ev_EditSettings()');
@@ -4809,11 +5105,6 @@ function initEdgeApe() {
 
     EM.Cache = new CacheMonkey();
     EM.PN = new PNAPI();
-  }
-
-  if(isEmpty(window.opener) && (window.parent==window) )
-  {
-    checkUpdate();
   }
 }
 
@@ -4833,7 +5124,6 @@ if (SOP_ok && !isEmpty(unsafeWindow.parent.EM)) {
   EM = {};
   EM.Settings = new SettingsStore();
   EM.User = new UserManager();
-  EM.Notifier = new Notifier();
   window.EM = EM;
   unsafeWindow.EM = EM;
 }

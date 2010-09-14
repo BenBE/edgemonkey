@@ -4824,10 +4824,13 @@ try {
 }
 catch(v) {
   SOP_ok = false;
+  unsafeWindow.parent = unsafeWindow; //Initialize as Main Window on error
 }
+var isMain = unsafeWindow.parent == unsafeWindow;
 
-if (SOP_ok && !isEmpty(unsafeWindow.parent.EM)) {
-  window.EM = unsafeWindow.parent.EM;
+if (SOP_ok && !isMain) {
+  EM = unsafeWindow.parent.EM;
+  window.EM = EM;
   unsafeWindow.EM = EM;
 } else {
   EM = {};

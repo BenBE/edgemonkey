@@ -310,7 +310,7 @@ function uneval_c(a) {
   }
   else {
     return uneval(a);
-  }  
+  }
 }
 
 function queryXPath(node,xpath){
@@ -5007,7 +5007,8 @@ UpdateMonkey.prototype = {
 }
 
 function initEdgeApe() {
-  window.Env={}; // this is sandbox-local
+  Env={}; // this is sandbox-local
+  window.Env = Env; //But only if we say so ;-)
   try {
     //Work around Firefox Security by Obscurity
     isEmpty(unsafeWindow.opener);
@@ -5044,7 +5045,7 @@ function initEdgeApe() {
     // either not accessible or we are top level
     // so it's our duty to build the EM wrapper
     console.log('Loader','Create new EM');
-    publish('EM', {
+    publish('EM', EM = { //Hack proudly required by FF4
       Ajax: new AJAXObject(),
       Settings: new SettingsStore(),
       User: null,

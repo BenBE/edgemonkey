@@ -3387,8 +3387,10 @@ SmileyWindow.prototype = {
 function Pagehacks() {
   if (EM.Settings.GetValue('pagehack','monospace'))
     this.cssHacks();
-  EM.Buttons.addButton('/templates/subSilver/images/folder_new_open.gif','Auf neue PNs pr&uuml;fen','EM.Pagehacks.checkPMs()','em_checkPM');
-  EM.Buttons.addButton('/graphics/sitemap/search.gif','Schnellsuche','EM.Pagehacks.fastSearch()','em_fastSearch');
+  if (EM.Env.isTopLevel) {
+    EM.Buttons.addButton('/templates/subSilver/images/folder_new_open.gif','Auf neue PNs pr&uuml;fen','EM.Pagehacks.checkPMs()','em_checkPM');
+    EM.Buttons.addButton('/graphics/sitemap/search.gif','Schnellsuche','EM.Pagehacks.fastSearch()','em_fastSearch');
+  }
   this.AddCustomStyles();
   if(EM.Settings.GetValue('pagehack','extSearchPage') &&
     /\bsearch\.php(\?(?:mode=results|search_id=.*|search_author=.*)|$)/.test(Env.url))
@@ -5007,8 +5009,8 @@ UpdateMonkey.prototype = {
 }
 
 function initEdgeApe() {
-  Env={}; // this is sandbox-local
-  window.Env = Env; //But only if we say so ;-)
+  var newEM;
+  window.Env={}; // this is sandbox-local
   try {
     //Work around Firefox Security by Obscurity
     isEmpty(unsafeWindow.opener);
@@ -5024,8 +5026,10 @@ function initEdgeApe() {
     // find out what we regard as parent using elaborate DNA tests...
     //  ...well, actually, only check hair color
     if (Env.isPopup) {
+      Env.parentName = 'window.opener';
       Env.parent = unsafeWindow.opener;
     } else {
+      Env.parentName = 'window.parent';
       Env.parent = unsafeWindow.parent;
     }
     //if we were toplevel, we don't have to care about SOP, so it will remain false
@@ -5038,69 +5042,95 @@ function initEdgeApe() {
   }
   console.log('Loader',Env.url,Env);
   if (Env.isSOPPass) {
-    // parent accessible, so it IS part of the EE & should have .EM
-    // if not, wait for it
-    continueUsing(Env.parent);
+    injectInitCode(Env.parentName);
+    waitForObject(false);
   } else {
-    // either not accessible or we are top level
-    // so it's our duty to build the EM wrapper
-    console.log('Loader','Create new EM');
-    publish('EM', EM = { //Hack proudly required by FF4
-      Ajax: new AJAXObject(),
-      Settings: new SettingsStore(),
-      User: null,
-      Cache: null,
-      Updater: null
-    });
-    EM.User = new UserManager();
-    EM.Cache = new CacheMonkey();
-    EM.Updater = new UpdateMonkey();
-
-    // toplevel && !popup check no longer needed, because all other cases wouldn't come here
-    upgradeSettings(EM);
-    setTimeout(function() {
-        EM.Updater.checkUpdate();
-    }, 100);
-
-    startup(EM);
+    injectInitCode();
+    waitForObject(true);
   }
 
-  function publish(name, data) {
-    window[name]=data;
-    unsafeWindow[name]=data;
+  function injectInitCode(p) {
+    var code='';
+    code+='(function(par){';
+    code+=' var newEM = {};';
+    code+=' if (par) {';
+    code+='  var wait=setTimeout(function() {';
+    code+='   if (typeof par.EM!=="undefined") {';
+    code+='    clearInterval(wait);';
+    code+='    newEM.__proto__ = par.EM.__proto__;';
+    code+='    window.EM = newEM;';
+    code+='   }';
+    code+='  }, 10);';
+    code+=' } else {';
+    code+='  newEM.__proto__ = {};';
+    code+='  window.EM = newEM;';
+    code+=' } ';
+    code+='})('+p+')';
+
+    var script=document.createElement('script');
+    script.setAttribute('type','text/javascript');
+    script.innerHTML = code;
+    document.documentElement.appendChild(script);
+    document.documentElement.removeChild(script);
   }
 
-  function continueUsing(ref) {
-    if (!ref.EM) {
-      setTimeout(function() {continueUsing(ref)}, 100);
-    } else {
-      publish('EM', ref.EM);
-      startup(ref.EM);
-    }
+  function waitForObject(buildglobals) {
+    var wait=setInterval(function() {
+      if (typeof unsafeWindow.EM!== "undefined") {
+        clearInterval(wait);
+        window.EM = unsafeWindow.EM;
+        if (buildglobals) {
+          shared(EM).Ajax = new AJAXObject();
+          shared(EM).Settings = new SettingsStore();
+          shared(EM).User = new UserManager();
+          shared(EM).Cache = new CacheMonkey();
+          shared(EM).Updater = new UpdateMonkey();
+          console.log('Loader','EM constructed',EM);
+          // toplevel && !popup check no longer needed, because all other cases wouldn't come here
+          upgradeSettings(EM);
+          setTimeout(function() {
+              EM.Updater.checkUpdate();
+          }, 200);
+        }
+        //awesome, we're done
+        startup(EM);
+      }
+    }, 20);
+  }
+
+  function shared(em) {
+    return em.__proto__;
   }
 
   function startup(EM) {
+    EM.Env = Env;
     if (Env.url.match(/shoutbox_view\.php/)) {
+      console.log("Loader",Env.url," is shoutbox");
       if (EM.User.loggedOnUser) {
-        EM.ShoutWin = new ShoutboxWindow();
+        shared(EM).ShoutWin = new ShoutboxWindow();
       }
     }
     else
     if (Env.url.match(/posting\.php\?mode=topicreview/)) {
+      console.log("Loader",Env.url," is topicreview");
       EM.Pagehacks = new Pagehacks();
     }
     else
     {
-      EM.Buttons = new ButtonBar();
-      EM.Notifier = new Notifier();
+      console.log("Loader",Env.url," is main");
+      if (!Env.isPopup) {
+        shared(EM).Buttons = new ButtonBar();
+        shared(EM).Notifier = new Notifier();
 
-      with(EM.Buttons) {
-        addButton('/graphics/Profil-Sidebar.gif','Einstellungen','EM.Settings.ev_EditSettings()');
-      }
-      EM.Pagehacks = new Pagehacks();
-      EM.Shouts = new ShoutboxControls();
+        with(EM.Buttons) {
+          addButton('/graphics/Profil-Sidebar.gif','Einstellungen','EM.Settings.ev_EditSettings()');
+        }
+        EM.Pagehacks = new Pagehacks();
+        shared(EM).Shouts = new ShoutboxControls();
 
-      EM.PN = new PNAPI();
+        shared(EM).PN = new PNAPI();
+      } else
+        console.log("Loader",Env.url," discarded (popup)");
     }
   }
 
@@ -5163,5 +5193,6 @@ function initEdgeApe() {
     }
   }
 }
+
 
 initEdgeApe(); //Should go as soon as possible ...

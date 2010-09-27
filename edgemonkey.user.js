@@ -1371,7 +1371,8 @@ function SettingsStore() {
 
   this.AddCategory('Such-Ansicht', [
     this.AddSetting( 'Zus&auml;tzliche Navigationslinks bei leeren Suchergebnissen', 'pagehack.extSearchPage', 'bool', false),
-    this.AddSetting( 'Zus&auml;tzliche Hervorhebungen bei Suchergebnissen', 'search.moremarkup', 'bool', true)
+    this.AddSetting( 'Zus&auml;tzliche Hervorhebungen bei Suchergebnissen', 'search.moremarkup', 'bool', true),
+    this.AddSetting( 'Erste Tabellenspalte auch hervorheben', 'search.highlightfirst', 'bool', true)
   ]);
 
   this.AddCategory('Thread-Ansicht', [
@@ -1400,6 +1401,7 @@ function SettingsStore() {
     this.AddSetting( 'Shouts von Moderatoren/Admins hervorheben', 'sb.highlight_mod', 'color', 0),
     this.AddSetting( 'Hervorzuhebende Benutzer<br />(Ein Benutzer je Zeile)', 'sb.user_stalk', 'list', []),
     this.AddSetting( 'Zeige Link zum Schreiben einer PN an Benutzer', 'sb.pnlink_active', 'bool', true),
+    this.AddSetting( 'Links f&uuml;r angemeldeten Benutzer immer komplett anzeigen', 'sb.linksForSelf', 'bool', true),
     this.AddSetting( 'Auszublendende Benutzer<br />(Ein Benutzer je Zeile)', 'sb.user_killfile', 'list', [])
   ]);
 
@@ -2299,7 +2301,7 @@ UserManager.prototype = {
     var kftype = EM.Settings.GetValue('topic','killFileType');
 
     var user_span = queryXPathNode(user_link,"./span");
-    var user_name = EM.User.usernameFromProfile(user_link.href);
+    var user_name = (user_link&&user_link.href)?EM.User.usernameFromProfile(user_link.href) : user_span.firstChild.textContent;
 
     var isSelf = user_name == EM.User.loggedOnUser;
     var isMod = /color\:/.test(user_link.style.cssText);
@@ -3181,19 +3183,22 @@ function ShoutboxWindow() {
     }
 
     var tools = null;
+    var l_stalk = null;
     var tool_html = '';
     if(anek_active) {
       tool_html+='<a href="javascript:EM.ShoutWin.ev_anekdote('+i+')">A</a>';
     }
-    if(pn_link) {
-      var uid = EM.User.getUID(shout_user);
-      if (uid>=0)
-        tool_html+='<a href="privmsg.php?mode=post&u=' + uid + '" target="_parent">P</a>';
-      else
-        tool_html+='P';
-    }
-    if(EM.Settings.GetValue('sb','highlight_stalk')>0) {
-      var l_stalk = EM.User.userlinkButtonFromLink(document, shout_user, EM.User.ev_stalk, 'sb', 'stalk');
+    if (!shout_user.equals(EM.User.loggedOnUser) || EM.Settings.GetValue('sb','linksForSelf')) {
+      if(pn_link) {
+        var uid = EM.User.getUID(shout_user);
+        if (uid>=0)
+          tool_html+='<a href="privmsg.php?mode=post&u=' + uid + '" target="_parent">P</a>';
+        else
+          tool_html+='P';
+      }
+      if(EM.Settings.GetValue('sb','highlight_stalk')>0) {
+        l_stalk = EM.User.userlinkButtonFromLink(document, shout_user, EM.User.ev_stalk, 'sb', 'stalk');
+      }
     }
     var l_kill = EM.User.userlinkButtonFromLink(document, shout_user, EM.User.ev_sbkill, 'sb', 'killfile');
     if(tool_html!='') {
@@ -3644,11 +3649,13 @@ Pagehacks.prototype = {
         var rowfix = col_ofs?' row'+(2-i%2):'';
 
         //Now lets check against the blacklist :P
-        cols[0].className += t_cssClassAdd;
+        if (singlePostMode || EM.Settings.GetValue('search','highlightfirst'))
+          cols[0].className += t_cssClassAdd;
         cols[1].className += t_cssClassAdd;
 
         //Remove the DF Highlighting to ensure proper colors :P
-        cols[0].className = cols[0].className.replace(/Highlight/, '');
+        if (singlePostMode || EM.Settings.GetValue('search','highlightfirst'))
+          cols[0].className = cols[0].className.replace(/Highlight/, '');
         cols[1].className = cols[1].className.replace(/Highlight/, '');
 
         if(singlePostMode){

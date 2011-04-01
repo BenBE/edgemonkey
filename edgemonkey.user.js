@@ -2986,9 +2986,12 @@ ShoutboxControls.prototype = {
   },
 
   ev_shoutchange: function(evt) {
-    var shout = this.form_text.value;
-    shout=this.replacer.do_replace(shout);
-    unsafeWindow.setShoutChars(shout, this.form_chars);
+    var shout = this.replacer.do_replace(this.form_text.value),
+    disp = this.form_chars;
+    if (unsafeWindow.setShoutChars)
+      unsafeWindow.setShoutChars(shout, disp);
+    else
+      unsafeWindow.Sidebar.shoutboxAssumeText(shout, disp);
   },
 
   ev_shoutkeys: function(evt) {

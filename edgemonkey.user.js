@@ -2994,7 +2994,7 @@ ShoutboxControls.prototype = {
 
   ev_shoutchange: function(evt) {
     var shout = this.replacer.do_replace(this.form_text.value),
-    disp = this.form_chars;
+        disp = this.form_chars;
     if (unsafeWindow.setShoutChars)
       unsafeWindow.setShoutChars(shout, disp);
     else

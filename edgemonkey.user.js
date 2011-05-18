@@ -376,8 +376,10 @@ function isEmpty(what)
 
 function isHTMLElement(what)
 {
+  // good job bugfox: inside GM, every string is an instanceof HTMLElement.
+  //   in normal code, it is not. Just hope every node has its constants defined.
   return !isEmpty(what) &&
-   ((what instanceof HTMLElement) || (what.nodeType));
+   ((what.ELEMENT_NODE) || (what.nodeType));
 }
 
 //http://www.infocamp.de/javascript_htmlspecialchars.php
@@ -5049,7 +5051,7 @@ function initEdgeApe() {
   Env.isPopup = !isEmpty(unsafeWindow.opener);
   if (Env.isPopup)
     Env.isEMPopup = unsafeWindow.name.substr(0,'em_wnd'.length)==='em_wnd';
-  Env.isTopLevel = !Env.isPopup && (unsafeWindow.parent==unsafeWindow); // popup is not the kind of toplevel we mean
+  Env.isTopLevel = !Env.isPopup && (window.parent==window); // popup is not the kind of toplevel we mean
   Env.url = window.location.href;
 
   Env.isSOPPass = false;

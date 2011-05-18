@@ -5085,7 +5085,7 @@ function initEdgeApe() {
     code+='(function(par){';
     code+=' var newEM = {};';
     code+=' if (par) {';
-    code+='  var wait=setTimeout(function() {';
+    code+='  var wait=setInterval(function() {';
     code+='   if (typeof par.EM!=="undefined") {';
     code+='    clearInterval(wait);';
     code+='    newEM.__proto__ = par.EM.__proto__;';
@@ -5226,6 +5226,5 @@ function initEdgeApe() {
     }
   }
 }
-
 
 initEdgeApe(); //Should go as soon as possible ...
